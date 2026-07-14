@@ -376,6 +376,8 @@ let activeTab = CATEGORIES[0].key;
 let summarySubTab = 'daily';
 let summaryMonthlyMonth = null;
 let summaryAcctMonth = null;
+let summaryDailyMonth = null;
+let summaryDailyRange = null;
 let currentDate = todayStr();
 let cache = {};
 let allDatesCache = null;
@@ -1055,6 +1057,23 @@ function groupByMonth(records){
   return g;
 }
 
+function getDailyRanges(monthKey){
+  const [y, m] = monthKey.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const bounds = [[1,7],[8,14],[15,21],[22,28],[29,31]];
+  const labels = ['1–7','8–14','15–21','22–28','29–สิ้นเดือน'];
+  const ranges = [];
+  bounds.forEach(([s,e], i)=>{
+    if(s>daysInMonth) return;
+    ranges.push({label: labels[i], start: s, end: Math.min(e, daysInMonth)});
+  });
+  return ranges;
+}
+function findRangeIndexForDay(ranges, day){
+  const idx = ranges.findIndex(r=> day>=r.start && day<=r.end);
+  return idx>=0 ? idx : ranges.length-1;
+}
+
 async function buildMonthlyKPI(recs){
   let steamNo5=0, steamNo2=0, steamNo4=0, palmKg=0, totalKwh=0, elecCost=0;
   for(const r of recs){
@@ -1163,7 +1182,24 @@ async function showSummary(){
 
 async function renderDailySummary(subArea, records){
   subArea.innerHTML = `<p class="sub">กำลังคำนวณ...</p>`;
-  const {rows: b5rows, missingSettings} = await buildBoiler5DailyRows(records);
+
+  const monthGroups = groupByMonth(records);
+  const months = Object.keys(monthGroups).sort();
+  const todayMonth = todayStr().slice(0,7);
+  if(!months.includes(summaryDailyMonth)) summaryDailyMonth = months.includes(todayMonth) ? todayMonth : months[months.length-1];
+
+  const ranges = getDailyRanges(summaryDailyMonth);
+  if(summaryDailyRange==null || summaryDailyRange>=ranges.length){
+    const day = summaryDailyMonth===todayMonth ? Number(todayStr().slice(8,10)) : ranges[0].start;
+    summaryDailyRange = findRangeIndexForDay(ranges, day);
+  }
+  const range = ranges[summaryDailyRange];
+  const periodRecords = (monthGroups[summaryDailyMonth]||[]).filter(r=>{
+    const day = Number(r.date.slice(8,10));
+    return day>=range.start && day<=range.end;
+  });
+
+  const {rows: b5rows, missingSettings} = await buildBoiler5DailyRows(periodRecords);
 
   const totalFuelKg = b5rows.reduce((s,r)=> s+(r.fuelKg||0), 0);
   const totalSteam = b5rows.reduce((s,r)=> s+(r.steam||0), 0);
@@ -1171,6 +1207,9 @@ async function renderDailySummary(subArea, records){
   const todayRow = b5rows.find(r=> r.date===todayStr());
   const todayAsh = todayRow?.ash ?? null;
   const todayAshPct = todayRow?.ashPct ?? null;
+
+  const monthOptions = months.map(mk=>`<option value="${mk}"${mk===summaryDailyMonth?' selected':''}>${mk}</option>`).join('');
+  const rangeOptions = ranges.map((rg,i)=>`<option value="${i}"${i===summaryDailyRange?' selected':''}>${rg.label}</option>`).join('');
 
   let html = '';
   html += `<div class="kpi-row">
@@ -1180,12 +1219,19 @@ async function renderDailySummary(subArea, records){
     <div class="kpi-card"><div class="kpi-label">ปริมาณขี้เถ้า</div><div class="kpi-value">${todayAsh==null?'—':num(todayAsh)}<span class="kpi-unit">kg</span></div><div class="kpi-label" style="margin-top:4px;">${todayAshPct==null?'—':num(todayAshPct,1)}% ของกะลาปาล์มที่ใช้</div></div>
   </div>`;
   html += `<div class="summary-toolbar"><span class="count">สรุปคำนวณ Boiler no.5 รายวัน</span>
-    <button class="btn btn-primary" id="exportBtn">⬇ ส่งออกเป็น Excel (.xlsx)</button></div>`;
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+      <div class="field" style="min-width:120px;"><label>เดือน</label><select id="dailyMonthSelect">${monthOptions}</select></div>
+      <div class="field" style="min-width:150px;"><label>ช่วง</label><select id="dailyRangeSelect">${rangeOptions}</select></div>
+      <button class="btn btn-primary" id="exportBtn">⬇ ส่งออกเป็น Excel (.xlsx)</button>
+    </div></div>`;
   html += `<details class="collapseTable"><summary>ตารางตัวเลขสรุปรายวัน (Boiler no.5)</summary>
   <div class="table-wrap" style="margin-top:10px;"><table class="summary"><thead><tr>
     <th>วันที่</th><th>กะลาปาล์มที่ใช้ (kg)</th><th>สตรีมที่ผลิตได้ (ton)</th><th>อัตราการใช้เชื้อเพลิง (kg/ton)</th>
     <th>ราคา (บาท/kg)</th><th>ยอดเงินรวม (บาท)</th><th>ขี้เถ้ารวม (kg)</th><th>% ขี้เถ้า</th>
   </tr></thead><tbody>`;
+  if(b5rows.length===0){
+    html += `<tr><td colspan="8" class="empty-state">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>`;
+  }
   b5rows.forEach(r=>{
     html += `<tr><td class="dcol">${r.date}</td>
       <td>${num(r.fuelKg)}</td><td>${num(r.steam)}</td><td>${num(r.rate)}</td>
@@ -1206,6 +1252,8 @@ async function renderDailySummary(subArea, records){
   html += `</tbody></table></div></details>`;
   subArea.innerHTML = html;
 
+  document.getElementById('dailyMonthSelect').onchange = (e)=>{ summaryDailyMonth = e.target.value; summaryDailyRange = null; renderDailySummary(subArea, records); };
+  document.getElementById('dailyRangeSelect').onchange = (e)=>{ summaryDailyRange = Number(e.target.value); renderDailySummary(subArea, records); };
   document.getElementById('exportBtn').onclick = ()=>exportExcel(records, cols, b5rows);
 }
 
