@@ -1415,14 +1415,34 @@ function exportDashboardHtml(monthly, records){
 window.__topicChartData = ${JSON.stringify(topicChartData)};
 window.__dayLabels = ${JSON.stringify(dayLabels)};
 let __topicChartInstance = null;
+const __topicValueLabelPlugin = {
+  id:'topicValueLabels',
+  afterDatasetsDraw(chart){
+    const ctx = chart.ctx;
+    chart.data.datasets.forEach((dataset, di)=>{
+      chart.getDatasetMeta(di).data.forEach((point, i)=>{
+        const value = dataset.data[i];
+        if(value===null || value===undefined || isNaN(value)) return;
+        ctx.save();
+        ctx.fillStyle = '#3a3a3a';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(Number(value).toLocaleString('en-US',{maximumFractionDigits:2}), point.x, point.y - 8);
+        ctx.restore();
+      });
+    });
+  }
+};
 function __renderTopicChart(idx){
   if(!window.Chart) return;
   const t = window.__topicChartData[idx];
   if(__topicChartInstance) __topicChartInstance.destroy();
   __topicChartInstance = new Chart(document.getElementById('topicChart'), {
-    type:'bar',
-    data:{ labels:window.__dayLabels, datasets:[{ label:t.label, data:t.data, backgroundColor:'#c1622d', borderRadius:4 }] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+    type:'line',
+    data:{ labels:window.__dayLabels, datasets:[{ label:t.label, data:t.data, borderColor:'#8bc34a', backgroundColor:'#8bc34a', pointBackgroundColor:'#e53935', pointBorderColor:'#e53935', pointRadius:4, borderWidth:2, tension:0, fill:false }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } },
+    plugins:[__topicValueLabelPlugin]
   });
 }
 window.__initDashboardCharts = function(){
