@@ -1507,7 +1507,7 @@ async function renderAccountingView(subArea, allRecords){
 
   html += `<details class="acctGroup"><summary>🌰 Palm Shell Stock Card</summary>
     <div class="table-wrap" style="margin-top:10px;"><table class="summary"><thead><tr>
-    <th>วันที่</th><th>ยอดยกมา</th><th>เที่ยวที่ 1</th><th>เที่ยวที่ 2</th><th>เที่ยวที่ 3</th><th>เที่ยวที่ 4</th><th>เที่ยวที่ 5</th><th>เที่ยวที่ 6</th><th>รวม (kg)</th><th>ใช้ป้อนเตา</th><th>คงเหลือ</th><th>kg/hr</th><th>ASH รวม</th><th>%ขี้เถ้า</th><th>ขี้เถ้านำออกสะสม</th>
+    <th>วันที่</th><th>คงเหลือเมื่อวาน</th><th>เที่ยวที่ 1</th><th>เที่ยวที่ 2</th><th>เที่ยวที่ 3</th><th>เที่ยวที่ 4</th><th>เที่ยวที่ 5</th><th>เที่ยวที่ 6</th><th>รวม (kg)</th><th>ใช้ป้อนเตา</th><th>คงเหลือ</th><th>kg/hr</th><th>ASH รวม</th><th>%ขี้เถ้า</th><th>ขี้เถ้านำออกสะสม</th>
     </tr></thead><tbody>`;
   let sumPalmReceived=0, sumPalmUsed=0;
   const sumTrips=[0,0,0,0,0,0];
@@ -1548,15 +1548,15 @@ async function renderAccountingView(subArea, allRecords){
 
   html += `<details class="acctGroup"><summary>⛽ Bunk Oil Stock Card</summary>
     <div class="table-wrap" style="margin-top:10px;"><table class="summary"><thead><tr>
-    <th>วันที่</th><th>ยอดยกมา</th><th>รับเข้า</th><th>ใช้ดิบ</th><th>ใช้จริง ×1.04</th><th>คงเหลือ</th><th>Tank1</th><th>Tank2</th>
+    <th>วันที่</th><th>คงเหลือเมื่อวาน</th><th>รับเข้า</th><th>ปริมาณการใช้น้ำมันเตา</th><th>คงเหลือ</th><th>Tank1</th><th>Tank2</th>
     </tr></thead><tbody>`;
   let sumBunkReceived=0, sumBunkActual=0;
   records.forEach(r=>{
     const s = sc[r.date] || {};
     sumBunkReceived += s.received||0; sumBunkActual += s.actualUse||0;
-    html += `<tr><td class="dcol">${r.date}</td><td>${num(s.opening)}</td><td>${num(s.received)}</td><td>${num(s.fuelUsed)}</td><td>${num(s.actualUse)}</td><td>${num(s.closing)}</td><td>${num(s.tank)}</td><td>${num(s.tank)}</td></tr>`;
+    html += `<tr><td class="dcol">${r.date}</td><td>${num(s.opening)}</td><td>${num(s.received)}</td><td>${num(s.actualUse)}</td><td>${num(s.closing)}</td><td>${num(s.tank)}</td><td>${num(s.tank)}</td></tr>`;
   });
-  html += `<tr class="total"><td colspan="2">รวม</td><td>${num(sumBunkReceived)}</td><td></td><td>${num(sumBunkActual)}</td><td colspan="3"></td></tr>`;
+  html += `<tr class="total"><td colspan="2">รวม</td><td>${num(sumBunkReceived)}</td><td>${num(sumBunkActual)}</td><td colspan="3"></td></tr>`;
   html += `</tbody></table></div></details>`;
 
   html += `<details class="acctGroup"><summary>⚡ Electricity</summary>
@@ -1668,7 +1668,7 @@ async function exportAccountingExcel(records, psc, sc, overviewRows){
     [12,16,10,14,16,10,14,12,10,14,16]
   ), 'สรุปยอดรวมรายวัน');
 
-  const palmHeader = ['วันที่','ยอดยกมา (kg)','เที่ยวที่ 1 (kg)','เที่ยวที่ 2 (kg)','เที่ยวที่ 3 (kg)','เที่ยวที่ 4 (kg)','เที่ยวที่ 5 (kg)','เที่ยวที่ 6 (kg)','รวม (kg)','ใช้ป้อนเตา (kg)','คงเหลือ (kg)','kg/hr','ASH รวม (kg)','% ขี้เถ้า','ขี้เถ้านำออกสะสม (kg)'];
+  const palmHeader = ['วันที่','คงเหลือเมื่อวาน (kg)','เที่ยวที่ 1 (kg)','เที่ยวที่ 2 (kg)','เที่ยวที่ 3 (kg)','เที่ยวที่ 4 (kg)','เที่ยวที่ 5 (kg)','เที่ยวที่ 6 (kg)','รวม (kg)','ใช้ป้อนเตา (kg)','คงเหลือ (kg)','kg/hr','ASH รวม (kg)','% ขี้เถ้า','ขี้เถ้านำออกสะสม (kg)'];
   const palmRows = records.map(r=>{
     const p = psc[r.date]||{};
     const ash = ashTotalNo5(r);
@@ -1701,14 +1701,14 @@ async function exportAccountingExcel(records, psc, sc, overviewRows){
     [12,16,12,10,12]
   ), 'Water');
 
-  const bunkHeader = ['วันที่','ยอดยกมา','รับเข้า','ใช้ดิบ','ใช้จริง ×1.04','คงเหลือ','Tank1','Tank2'];
+  const bunkHeader = ['วันที่','คงเหลือเมื่อวาน','รับเข้า','ปริมาณการใช้น้ำมันเตา','คงเหลือ','Tank1','Tank2'];
   const bunkRows = records.map(r=>{
     const s = sc[r.date]||{};
-    return [r.date, s.opening??'', s.received??'', s.fuelUsed??'', s.actualUse??'', s.closing??'', s.tank??'', s.tank??''];
+    return [r.date, s.opening??'', s.received??'', s.actualUse??'', s.closing??'', s.tank??'', s.tank??''];
   });
   XLSX.utils.book_append_sheet(wb, acctTitledSheet(
     'Bunker Oil Stock Card Daily Report', `Engineering Department / Power Plant Section / Boiler Unit — ${monthTag}`, bunkHeader, bunkRows,
-    [12,10,10,10,12,10,9,9]
+    [12,10,10,12,10,9,9]
   ), 'Bunk Oil Stock Card');
 
   const elecHeader = ['วันที่','Rate A','Rate B','Rate C','kW รวม','Ft','kVA','ค่าไฟฟ้า (บาท)'];
