@@ -948,7 +948,10 @@ async function renderForm(rec){
     }
 
     // Strict validation only after leaving the field, so it doesn't fire on every keystroke.
+    // Guard against blur fired by the DOM swap in renderForm() removing a still-focused
+    // input mid-render (isConnected===false) — that's teardown, not the user leaving the field.
     meterInput.addEventListener('blur', ()=>{
+      if(!meterInput.isConnected) return;
       if(prev==null || meterInput.value==='') return;
       const m = parseFloat(meterInput.value);
       if(isNaN(m)) return;
@@ -962,6 +965,7 @@ async function renderForm(rec){
       checkUsageDrop();
     });
     usageInput.addEventListener('blur', ()=>{
+      if(!usageInput.isConnected) return;
       if(prev==null || usageInput.value==='') return;
       const u = parseFloat(usageInput.value);
       if(isNaN(u)) return;
