@@ -77,6 +77,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .date-field label{font-size:12px; color:#c7d0c9; letter-spacing:.06em; text-transform:uppercase;}
   .date-field input{background:transparent; border:none; color:#f4f1ea; font-family:var(--mono); font-size:16px; font-weight:600;}
   .date-field input::-webkit-calendar-picker-indicator{filter:invert(1); opacity:.7;}
+  .date-field .dayStepBtn{padding:6px 12px; font-size:13px; background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.25); color:#f4f1ea;}
+  .date-field .dayStepBtn:hover{background:rgba(255,255,255,.2); border-color:rgba(255,255,255,.4); color:#f4f1ea;}
   .status-pill{font-size:13px; padding:6px 12px; border-radius:999px; font-weight:600; letter-spacing:.02em;}
   .status-pill.saved{background:rgba(63,138,92,.18); color:#8fd6ab; border:1px solid rgba(143,214,171,.3);}
   .status-pill.empty{background:rgba(255,255,255,.08); color:#c7d0c9; border:1px solid rgba(255,255,255,.15);}
@@ -175,7 +177,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     <h1>Boiler Energy Data</h1>
     <p>ข้อมูล Boiler / Palm shell / Bunk oil / Water / Electricity / LPG</p>
     <div class="hero-row">
-      <div class="date-field"><label for="entryDate">วันที่</label><input type="date" id="entryDate"></div>
+      <div class="date-field"><button type="button" class="btn btn-ghost dayStepBtn" id="lastDayBtn" aria-label="วันก่อนหน้า">‹ Last Day</button><label for="entryDate">วันที่</label><input type="date" id="entryDate"><button type="button" class="btn btn-ghost dayStepBtn" id="nextDayBtn" aria-label="วันถัดไป">Next Day ›</button></div>
       <span id="statusPill" class="status-pill empty">ยังไม่มีข้อมูลวันนี้</span>
     </div>
   </div>
@@ -405,6 +407,12 @@ function todayStr(){
 function daysInMonth(dateStr){
   const [y,m] = dateStr.split('-').map(Number);
   return new Date(y, m, 0).getDate();
+}
+function shiftDateStr(dateStr, delta){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  dt.setDate(dt.getDate()+delta);
+  return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
 }
 
 function emptyRecord(date){
@@ -2053,6 +2061,17 @@ async function refresh(){
 document.getElementById('entryDate').value = currentDate;
 document.getElementById('entryDate').addEventListener('change', async (e)=>{
   currentDate = e.target.value || todayStr();
+  await refresh();
+});
+
+document.getElementById('lastDayBtn').addEventListener('click', async ()=>{
+  currentDate = shiftDateStr(currentDate, -1);
+  document.getElementById('entryDate').value = currentDate;
+  await refresh();
+});
+document.getElementById('nextDayBtn').addEventListener('click', async ()=>{
+  currentDate = shiftDateStr(currentDate, 1);
+  document.getElementById('entryDate').value = currentDate;
   await refresh();
 });
 
