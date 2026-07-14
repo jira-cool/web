@@ -790,10 +790,9 @@ async function renderForm(rec){
       html += `<p class="note-line">ยังไม่มีข้อมูลของวันนี้ในระบบ — บันทึกข้อมูลก่อนเพื่อให้คำนวณ Stock Card</p>`;
     } else {
       html += `<table class="cost"><tbody>
-        <tr><td>ยอดยกมา</td><td class="num">${num(todayPS.opening)} kg</td></tr>
-        <tr><td>รับเข้า (น้ำหนัก Supplier)</td><td class="num">${num(todayPS.received)} kg</td></tr>
-        <tr><td>ใช้ (ป้อนเตา M4.1+M4.2)</td><td class="num">${num(todayPS.used)} kg</td></tr>
-        <tr><td>อัตราป้อนเตา</td><td class="num">${num(todayPS.kgPerHr)} kg/hr</td></tr>
+        <tr><td>คงเหลือเมื่อวาน</td><td class="num">${num(todayPS.opening)} kg</td></tr>
+        <tr><td>รับเข้า</td><td class="num">${num(todayPS.received)} kg</td></tr>
+        <tr><td>ปริมาณการใช้</td><td class="num">${num(todayPS.used)} kg</td></tr>
         <tr class="total"><td>คงเหลือ</td><td class="num">${num(todayPS.closing)} kg</td></tr>
       </tbody></table>`;
     }
