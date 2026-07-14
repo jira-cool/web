@@ -127,9 +127,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .btn-ghost:hover{border-color:var(--ink-soft); color:var(--ink);}
   .placeholder-box{border:1.5px dashed var(--panel-line); border-radius:14px; padding:44px 22px; text-align:center; color:var(--ink-soft); font-size:14.5px; background:#fbfbf9;}
   .note-line{font-size:12.5px; color:var(--ink-soft); margin-top:6px;}
-  .summary-header{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;}
-  .summary-header .field{margin:0; min-width:110px;}
-  .summary-header-controls{display:flex; gap:10px; flex-wrap:wrap;}
+  .summary-header-controls{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; margin-bottom:14px;}
+  .summary-header-controls .field{margin:0; min-width:110px;}
   .summary-toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:10px; flex-wrap:wrap;}
   .summary-toolbar .count{font-size:13.5px; color:var(--ink-soft); font-weight:700;}
   .table-wrap{overflow-x:auto; border:1px solid var(--panel-line); border-radius:14px; margin-bottom:18px;}
@@ -1187,7 +1186,7 @@ async function showSummary(){
   }
   const kpiDayOptions = Array.from({length:kpiDaysInMonth}, (_,i)=>i+1)
     .map(d=>`<option value="${d}"${d===summaryKpiDay?' selected':''}>${d}</option>`).join('');
-  const monthOptions = months.map(mk=>`<option value="${mk}"${mk===summaryDailyMonth?' selected':''}>${mk}</option>`).join('');
+  const monthOptions = months.map(mk=>`<option value="${mk}"${mk===summaryDailyMonth?' selected':''}>${mk.split('-').reverse().join('-')}</option>`).join('');
   const kpiControlsHtml = months.length>0
     ? `<div class="summary-header-controls">
         <div class="field"><label>วันที่</label><select id="summaryKpiDaySelect">${kpiDayOptions}</select></div>
@@ -1195,7 +1194,7 @@ async function showSummary(){
       </div>`
     : '';
 
-  area.innerHTML = `<div class="panel"><div class="summary-header"><h2>📊 สรุปข้อมูล</h2>${kpiControlsHtml}</div><p class="sub">${records.length} วันที่มีข้อมูลบันทึกไว้</p>${subtabsHtml}<div id="subArea"></div></div>`;
+  area.innerHTML = `<div class="panel"><h2>📊 สรุปข้อมูล</h2>${kpiControlsHtml}<p class="sub">${records.length} วันที่มีข้อมูลบันทึกไว้</p>${subtabsHtml}<div id="subArea"></div></div>`;
   document.querySelectorAll('.subtab-btn').forEach(b=>{
     b.onclick = ()=>{ summarySubTab = b.dataset.sub; showSummary(); };
   });
@@ -1224,21 +1223,41 @@ async function renderDailySummary(subArea, records){
 
   const kpiDateStr = `${summaryDailyMonth}-${String(summaryKpiDay).padStart(2,'0')}`;
   const kpiRecord = records.find(r=> r.date===kpiDateStr);
-  const kpiRow = kpiRecord ? (await buildBoiler5DailyRows([kpiRecord])).rows[0] : null;
-  const dayFuelKg = kpiRow?.fuelKg ?? null;
-  const daySteam = kpiRow?.steam ?? null;
-  const dayRate = kpiRow?.rate ?? null;
-  const dayAsh = kpiRow?.ash ?? null;
-  const dayAshPct = kpiRow?.ashPct ?? null;
+
+  const kpiRow5 = kpiRecord ? (await buildBoiler5DailyRows([kpiRecord])).rows[0] : null;
+  const fuelKg5 = kpiRow5?.fuelKg ?? null;
+  const steam5 = kpiRow5?.steam ?? null;
+  const rate5 = kpiRow5?.rate ?? null;
+  const ash5 = kpiRow5?.ash ?? null;
+  const ashPct5 = kpiRow5?.ashPct ?? null;
+
+  const steam2 = kpiRecord ? await computeSteamSimple(kpiRecord, 'no2') : null;
+  const fuel2 = kpiRecord ? parseFloat(kpiRecord.boiler?.no2?.fuel?.usage) : NaN;
+  const steam4 = kpiRecord ? await computeSteamSimple(kpiRecord, 'no4') : null;
+  const fuel4 = kpiRecord ? parseFloat(kpiRecord.boiler?.no4?.fuel?.usage) : NaN;
 
   let html = '';
-  html += `<div class="kpi-row">
-    <div class="kpi-card"><div class="kpi-label">ปริมาณการใช้กะลาปาล์ม</div><div class="kpi-value">${dayFuelKg==null?'—':num(dayFuelKg)}<span class="kpi-unit">kg</span></div></div>
-    <div class="kpi-card"><div class="kpi-label">Flow Steam</div><div class="kpi-value">${daySteam==null?'—':num(daySteam)}<span class="kpi-unit">ton</span></div></div>
-    <div class="kpi-card"><div class="kpi-label">อัตราการใช้เชื้อเพลิง</div><div class="kpi-value">${dayRate==null?'—':num(dayRate)}<span class="kpi-unit">kg/ton</span></div></div>
-    <div class="kpi-card"><div class="kpi-label">ปริมาณขี้เถ้า</div><div class="kpi-value">${dayAsh==null?'—':num(dayAsh)}<span class="kpi-unit">kg</span></div><div class="kpi-label" style="margin-top:4px;">${dayAshPct==null?'—':num(dayAshPct,1)}% ของกะลาปาล์มที่ใช้</div></div>
+  html += `<div class="month-block"><div class="month-title">Boiler no.5 (20ton)</div>
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Flow Steam</div><div class="kpi-value">${steam5==null?'—':num(steam5)}<span class="kpi-unit">ton</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">ปริมาณการใช้กะลาปาล์ม</div><div class="kpi-value">${fuelKg5==null?'—':num(fuelKg5)}<span class="kpi-unit">kg</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">อัตราการใช้เชื้อเพลิง</div><div class="kpi-value">${rate5==null?'—':num(rate5)}<span class="kpi-unit">kg/ton</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">ปริมาณขี้เถ้า</div><div class="kpi-value">${ash5==null?'—':num(ash5)}<span class="kpi-unit">kg</span></div><div class="kpi-label" style="margin-top:4px;">${ashPct5==null?'—':num(ashPct5,1)}% ของกะลาปาล์มที่ใช้</div></div>
+    </div>
   </div>`;
-  html += `<div class="summary-toolbar"><span class="count">สรุปคำนวณ Boiler no.5 รายวัน</span>
+  html += `<div class="month-block"><div class="month-title">Boiler no.2 (4ton)</div>
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Flow Steam</div><div class="kpi-value">${steam2==null?'—':num(steam2)}<span class="kpi-unit">ton</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">ปริมาณการใช้เชื้อเพลิง</div><div class="kpi-value">${isNaN(fuel2)?'—':num(fuel2)}<span class="kpi-unit">liter</span></div></div>
+    </div>
+  </div>`;
+  html += `<div class="month-block"><div class="month-title">Boiler no.4 (10ton)</div>
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Flow Steam</div><div class="kpi-value">${steam4==null?'—':num(steam4)}<span class="kpi-unit">ton</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">ปริมาณการใช้เชื้อเพลิง</div><div class="kpi-value">${isNaN(fuel4)?'—':num(fuel4)}<span class="kpi-unit">liter</span></div></div>
+    </div>
+  </div>`;
+  html += `<div class="summary-toolbar" style="justify-content:flex-end;">
     <button class="btn btn-primary" id="exportBtn">⬇ ส่งออกเป็น Excel (.xlsx)</button>
   </div>`;
   subArea.innerHTML = html;
