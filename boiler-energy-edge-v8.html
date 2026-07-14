@@ -1314,17 +1314,19 @@ async function renderMonthlyCostView(subArea, records){
 
   document.getElementById('monthlyCostMonthSelect').onchange = (e)=>{ summaryMonthlyMonth = e.target.value; renderMonthlyCostView(subArea, records); };
   document.getElementById('exportCostBtn').onclick = ()=>exportCostExcel([m]);
-  document.getElementById('exportDashboardBtn').onclick = ()=>exportDashboardHtml([m]);
+  document.getElementById('exportDashboardBtn').onclick = ()=>exportDashboardHtml([m], records);
 }
 
-function exportDashboardHtml(monthly){
+function exportDashboardHtml(monthly, records){
   const latest = monthly[monthly.length-1];
-  const donutColors = ['#c1622d','#2b6777','#3f8a5c','#9c4a1f','#5b6b64'];
   const rowsHtml = latest.rows.map(r=>`<tr><td>${r.label}</td><td style="text-align:right;">${r.qty.toLocaleString('en-US',{maximumFractionDigits:2})} ${r.unit}</td><td style="text-align:right;">${r.cost==null?'—':thb(r.cost)}</td></tr>`).join('');
-  const legendHtml = latest.rows.map((r,i)=>{
-    const pct = latest.grandTotal ? ((r.cost||0)/latest.grandTotal*100) : 0;
-    return `<div class="legend-item"><span class="dot" style="background:${donutColors[i%donutColors.length]}"></span><span class="lbl">${r.label}</span><span class="pct">${pct.toFixed(1)}%</span></div>`;
-  }).join('');
+  const cols = flatColumns();
+  const monthRecords = records.filter(r=>r.date.slice(0,7)===latest.monthKey).sort((a,b)=>a.date.localeCompare(b.date));
+  const dayLabels = monthRecords.map(r=>r.date.slice(8,10));
+  const topicChartData = RAW_DATA_TOPICS.map(t=>{
+    const tcols = cols.filter(t.filter);
+    return { label: t.label, data: monthRecords.map(r=> tcols.reduce((s,c)=>{ const v=parseFloat(c.get(r)); return s + (isNaN(v)?0:v); }, 0)) };
+  });
   const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>Boiler Energy Dashboard — ${latest.monthKey}</title>
 <script>
 /**
@@ -1359,20 +1361,18 @@ function exportDashboardHtml(monthly){
   .hero .eyebrow{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:#e8863b;font-weight:700;}
   .hero h1{margin:10px 0 4px;font-size:25px;font-weight:800;letter-spacing:-.01em;}
   .hero p{margin:0;color:#c7d0c9;font-size:12.5px;}
-  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:22px;}
-  .kpi-card{background:#fff;border:1px solid var(--panel-line);border-radius:12px;padding:18px 20px;}
-  .kpi-card .l{font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;font-weight:600;}
-  .kpi-card .v{font-size:23px;font-weight:800;}
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-bottom:22px;}
+  .kpi-card{background:#fff;border:1px solid var(--panel-line);border-radius:12px;padding:16px 18px;min-width:0;}
+  .kpi-card .l{font-size:11px;color:var(--ink-soft);margin-bottom:8px;font-weight:600;overflow-wrap:break-word;}
+  .kpi-card .v{font-size:19px;font-weight:800;overflow-wrap:break-word;word-break:break-word;}
   .kpi-card .u{font-size:11px;color:#93a19a;margin-left:4px;font-weight:500;}
-  .row-2col{display:grid;grid-template-columns:300px 1fr;gap:20px;align-items:start;margin-bottom:0;}
+  .row-2col{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;margin-bottom:0;}
   .panel{background:#fff;border:1px solid var(--panel-line);border-radius:16px;padding:26px;margin-bottom:22px;box-shadow:0 1px 3px rgba(28,38,34,.04);}
   .panel h2{margin:0 0 18px;font-size:14.5px;font-weight:800;color:var(--ink);}
-  .donut-wrap{width:190px;height:190px;margin:0 auto 20px;}
-  .legend-list{display:flex;flex-direction:column;gap:10px;}
-  .legend-item{display:flex;align-items:center;gap:8px;font-size:12.5px;}
-  .legend-item .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
-  .legend-item .lbl{flex:1;color:var(--ink);font-weight:600;}
-  .legend-item .pct{font-family:ui-monospace,Consolas,monospace;color:var(--ink-soft);font-weight:700;}
+  .topic-field{margin-bottom:14px;}
+  .topic-field label{display:block;font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;font-weight:600;}
+  .topic-field select{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--panel-line);font-size:13px;font-family:inherit;color:var(--ink);background:#fff;}
+  .chart-wrap{height:230px;}
   table{width:100%;border-collapse:collapse;font-size:13px;}
   th{text-align:left;background:#1c2622;color:#f4f1ea;padding:10px 12px;font-weight:700;}
   td{padding:10px 12px;border-bottom:1px solid var(--panel-line);}
@@ -1395,9 +1395,13 @@ function exportDashboardHtml(monthly){
   </div>
   <div class="row-2col">
     <div class="panel">
-      <h2>สัดส่วนต้นทุนเดือน ${latest.monthKey}</h2>
-      <div class="donut-wrap"><canvas id="pieChart"></canvas></div>
-      <div class="legend-list">${legendHtml}</div>
+      <h2>กราฟข้อมูลดิบรายวัน (Raw Data)</h2>
+      <div class="topic-field"><label>เลือกหัวข้อ</label>
+        <select id="rawTopicSelect">
+          ${RAW_DATA_TOPICS.map((t,i)=>`<option value="${i}">${t.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="chart-wrap"><canvas id="topicChart"></canvas></div>
     </div>
     <div class="panel">
       <h2>รายละเอียดต้นทุนเดือน ${latest.monthKey}</h2>
@@ -1408,13 +1412,24 @@ function exportDashboardHtml(monthly){
   <p class="foot">Boiler Energy Data — Engineering Dept / EEC Section</p>
 </div>
 <script>
+window.__topicChartData = ${JSON.stringify(topicChartData)};
+window.__dayLabels = ${JSON.stringify(dayLabels)};
+let __topicChartInstance = null;
+function __renderTopicChart(idx){
+  if(!window.Chart) return;
+  const t = window.__topicChartData[idx];
+  if(__topicChartInstance) __topicChartInstance.destroy();
+  __topicChartInstance = new Chart(document.getElementById('topicChart'), {
+    type:'bar',
+    data:{ labels:window.__dayLabels, datasets:[{ label:t.label, data:t.data, backgroundColor:'#c1622d', borderRadius:4 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+  });
+}
 window.__initDashboardCharts = function(){
   if(!window.Chart) return;
-  new Chart(document.getElementById('pieChart'), {
-    type:'doughnut',
-    data:{ labels:${JSON.stringify(latest.rows.map(r=>r.label))}, datasets:[{data:${JSON.stringify(latest.rows.map(r=>r.cost||0))}, backgroundColor:${JSON.stringify(donutColors)}}] },
-    options:{ responsive:true, maintainAspectRatio:true, plugins:{ legend:{ display:false } } }
-  });
+  __renderTopicChart(0);
+  const sel = document.getElementById('rawTopicSelect');
+  if(sel) sel.addEventListener('change', (e)=> __renderTopicChart(Number(e.target.value)));
 };
 if(window.Chart) window.__initDashboardCharts();
 <\/script>
