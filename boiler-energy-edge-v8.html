@@ -1195,7 +1195,7 @@ async function showSummary(){
       </div>`
     : '';
 
-  area.innerHTML = `<div class="panel"><h2>📊 สรุปข้อมูล</h2>${kpiControlsHtml}<p class="sub">${records.length} วันที่มีข้อมูลบันทึกไว้</p>${subtabsHtml}<div id="subArea"></div></div>`;
+  area.innerHTML = `<div class="panel"><h2>📊 สรุปข้อมูล</h2><p class="sub">${records.length} วันที่มีข้อมูลบันทึกไว้</p>${subtabsHtml}${kpiControlsHtml}<div id="subArea"></div></div>`;
   document.querySelectorAll('.subtab-btn').forEach(b=>{
     b.onclick = ()=>{ summarySubTab = b.dataset.sub; showSummary(); };
   });
