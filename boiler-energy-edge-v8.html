@@ -1187,7 +1187,8 @@ async function showSummary(){
   const kpiDayOptions = Array.from({length:kpiDaysInMonth}, (_,i)=>i+1)
     .map(d=>`<option value="${d}"${d===summaryKpiDay?' selected':''}>${d}</option>`).join('');
   const monthOptions = months.map(mk=>`<option value="${mk}"${mk===summaryDailyMonth?' selected':''}>${mk.split('-').reverse().join('-')}</option>`).join('');
-  const kpiControlsHtml = months.length>0
+  const showKpiControls = months.length>0 && summarySubTab==='daily';
+  const kpiControlsHtml = showKpiControls
     ? `<div class="summary-header-controls">
         <div class="field"><label>วันที่</label><select id="summaryKpiDaySelect">${kpiDayOptions}</select></div>
         <div class="field"><label>เดือน</label><select id="summaryKpiMonthSelect">${monthOptions}</select></div>
@@ -1198,7 +1199,7 @@ async function showSummary(){
   document.querySelectorAll('.subtab-btn').forEach(b=>{
     b.onclick = ()=>{ summarySubTab = b.dataset.sub; showSummary(); };
   });
-  if(months.length>0){
+  if(showKpiControls){
     document.getElementById('summaryKpiDaySelect').onchange = (e)=>{ summaryKpiDay = Number(e.target.value); showSummary(); };
     document.getElementById('summaryKpiMonthSelect').onchange = (e)=>{ summaryDailyMonth = e.target.value; summaryKpiDay = null; showSummary(); };
   }
