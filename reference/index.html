@@ -219,6 +219,7 @@ let summaryMonthlyMonth = null;
 let summaryAcctMonth = null;
 let summaryDailyMonth = null;
 let summaryDailyRange = null;
+let summaryRawDataTopic = 0;
 let currentDate = todayStr();
 let cache = {};
 let allDatesCache = null;
@@ -893,6 +894,19 @@ function flatColumns(){
   return cols;
 }
 
+/* หัวข้อสำหรับ Dropdown ของตารางข้อมูลดิบ — กรองจากคอลัมน์ที่มีอยู่แล้ว (flatColumns) ไม่มีการเพิ่ม data source ใหม่ */
+const RAW_DATA_TOPICS = [
+  {label:'Boiler2 Steam', filter:c=> c.cat==='boiler' && c.catLabel.includes('no.2') && c.header.startsWith('Feed water')},
+  {label:'Boiler4 Steam', filter:c=> c.cat==='boiler' && c.catLabel.includes('no.4') && c.header.startsWith('Feed water')},
+  {label:'Boiler5 Steam', filter:c=> c.cat==='boiler' && c.catLabel.includes('no.5') && c.header.startsWith('Feed water')},
+  {label:'Boiler2 Fuel', filter:c=> c.cat==='boiler' && c.catLabel.includes('no.2') && c.header.startsWith('ปริมาณการใช้เชื้อเพลิง')},
+  {label:'Boiler4 Fuel', filter:c=> c.cat==='boiler' && c.catLabel.includes('no.4') && c.header.startsWith('ปริมาณการใช้เชื้อเพลิง')},
+  {label:'Boiler5 Fuel', filter:c=> c.cat==='boiler' && c.catLabel.includes('no.5') && c.header.startsWith('ปริมาณการใช้เชื้อเพลิง')},
+  {label:'Ash Weight', filter:c=> c.cat==='boiler' && c.header.startsWith('ASH')},
+  {label:'Palm Shell Receiving', filter:c=> c.cat==='palmShell'},
+  {label:'Water Consumption', filter:c=> c.cat==='water'},
+];
+
 /* ---------------- cost aggregation ---------------- */
 function sumField(records, getter){
   let s=0;
@@ -1088,13 +1102,16 @@ async function renderDailySummary(subArea, records){
   html += `</tbody></table></div></details>`;
 
   const cols = flatColumns();
+  const rawTopicOptions = RAW_DATA_TOPICS.map((t,i)=>`<option value="${i}"${i===summaryRawDataTopic?' selected':''}>${t.label}</option>`).join('');
+  const rawCols = cols.filter(RAW_DATA_TOPICS[summaryRawDataTopic].filter);
   html += `<details class="collapseTable"><summary>ตารางข้อมูลดิบทั้งหมด (ทุกหมวด)</summary>
+    <div class="field" style="min-width:220px; margin-top:10px;"><label>หัวข้อ</label><select id="rawDataTopicSelect">${rawTopicOptions}</select></div>
     <div class="table-wrap" style="margin-top:10px;"><table class="summary"><thead><tr><th>วันที่</th>`;
-  cols.forEach(c=> html += `<th><span class="cat-label">${c.catLabel}</span>${c.header}</th>`);
+  rawCols.forEach(c=> html += `<th><span class="cat-label">${c.catLabel}</span>${c.header}</th>`);
   html += `</tr></thead><tbody>`;
   records.forEach(r=>{
     html += `<tr><td class="dcol">${r.date}</td>`;
-    cols.forEach(c=> html += `<td>${c.get(r) || '—'}</td>`);
+    rawCols.forEach(c=> html += `<td>${c.get(r) || '—'}</td>`);
     html += `</tr>`;
   });
   html += `</tbody></table></div></details>`;
@@ -1102,6 +1119,7 @@ async function renderDailySummary(subArea, records){
 
   document.getElementById('dailyMonthSelect').onchange = (e)=>{ summaryDailyMonth = e.target.value; summaryDailyRange = null; renderDailySummary(subArea, records); };
   document.getElementById('dailyRangeSelect').onchange = (e)=>{ summaryDailyRange = Number(e.target.value); renderDailySummary(subArea, records); };
+  document.getElementById('rawDataTopicSelect').onchange = (e)=>{ summaryRawDataTopic = Number(e.target.value); renderDailySummary(subArea, records); };
   document.getElementById('exportBtn').onclick = ()=>exportExcel(records, cols, b5rows);
 }
 
