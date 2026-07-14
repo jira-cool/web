@@ -1428,16 +1428,22 @@ const __topicValueLabelPlugin = {
   afterDatasetsDraw(chart){
     const ctx = chart.ctx;
     chart.data.datasets.forEach((dataset, di)=>{
+      let lastRight = -Infinity;
       chart.getDatasetMeta(di).data.forEach((point, i)=>{
         const value = dataset.data[i];
         if(value===null || value===undefined || isNaN(value)) return;
+        const text = Number(value).toLocaleString('en-US',{maximumFractionDigits:2});
         ctx.save();
         ctx.fillStyle = '#3a3a3a';
         ctx.font = '11px sans-serif';
+        const textWidth = ctx.measureText(text).width;
+        const left = point.x - textWidth/2;
+        if(left < lastRight + 4){ ctx.restore(); return; }
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(Number(value).toLocaleString('en-US',{maximumFractionDigits:2}), point.x, point.y - 8);
+        ctx.fillText(text, point.x, point.y - 8);
         ctx.restore();
+        lastRight = point.x + textWidth/2;
       });
     });
   }
