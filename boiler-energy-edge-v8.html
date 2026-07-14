@@ -1089,7 +1089,7 @@ function findRangeIndexForDay(ranges, day){
 }
 
 async function buildMonthlyKPI(recs){
-  let steamNo5=0, steamNo2=0, steamNo4=0, palmKg=0, totalKwh=0, elecCost=0;
+  let steamNo5=0, steamNo2=0, steamNo4=0, palmKg=0, totalKwh=0, elecCost=0, ashKg=0;
   for(const r of recs){
     const s5 = await computeSteamNo5(r);
     if(s5!=null) steamNo5 += s5;
@@ -1100,6 +1100,7 @@ async function buildMonthlyKPI(recs){
     palmKg += fuelNo5Kg(r);
     totalKwh += (parseFloat(r.electricity?.rateA)||0)+(parseFloat(r.electricity?.rateB)||0)+(parseFloat(r.electricity?.rateC)||0);
     elecCost += await computeElecCostDay(r);
+    ashKg += ashTotalNo5(r);
   }
   const sc = await computeStockCard();
   const bunkerActual = recs.reduce((s,r)=> s + (sc[r.date]?.actualUse || 0), 0);
@@ -1108,7 +1109,8 @@ async function buildMonthlyKPI(recs){
   const fuelRateNo5 = steamNo5>0 ? palmKg/steamNo5 : null;
   const fuelRateNo24 = steamNo24>0 ? bunkerActual/steamNo24 : null;
   const waterTotal = sumMeterUsage(recs, 'm1');
-  return {steamTotal, steamNo5, steamNo24, palmKg, bunkerActual, totalKwh, elecCost, fuelRateNo5, fuelRateNo24, waterTotal};
+  const ashPctAvg = palmKg>0 ? (ashKg/palmKg*100) : null;
+  return {steamTotal, steamNo5, steamNo24, palmKg, bunkerActual, totalKwh, elecCost, fuelRateNo5, fuelRateNo24, waterTotal, ashKg, ashPctAvg};
 }
 
 async function buildMonthlyCostRows(monthKey, recs){
@@ -1296,6 +1298,7 @@ async function renderMonthlyCostView(subArea, records){
         <div class="kpi-card"><div class="kpi-label">ปริมาณการใช้น้ำรวม</div><div class="kpi-value">${num(m.kpi.waterTotal)}<span class="kpi-unit">m³</span></div></div>
         <div class="kpi-card"><div class="kpi-label">ปริมาณการใช้ไฟฟ้า</div><div class="kpi-value">${num(m.kpi.totalKwh)}<span class="kpi-unit">kWh</span></div></div>
         <div class="kpi-card"><div class="kpi-label">ค่าไฟฟ้ารวม</div><div class="kpi-value">${num(m.kpi.elecCost)}<span class="kpi-unit">บาท</span></div></div>
+        <div class="kpi-card"><div class="kpi-label">ปริมาณขี้เถ้ารวม</div><div class="kpi-value">${num(m.kpi.ashKg)}<span class="kpi-unit">kg</span></div><div class="kpi-label" style="margin-top:4px;">${m.kpi.ashPctAvg==null?'—':num(m.kpi.ashPctAvg,1)}% เฉลี่ยต่อการใช้กะลาปาล์ม</div></div>
       </div>
       <details class="collapseTable"><summary>ตารางต้นทุนรายละเอียด (บาท)</summary>
       <table class="cost" style="margin-top:10px;"><thead><tr><th>รายการ</th><th>ปริมาณ</th><th>หน่วย</th><th>ราคา/หน่วย (THB)</th><th>ต้นทุนรวม (THB)</th></tr></thead><tbody>`;
@@ -1388,6 +1391,7 @@ function exportDashboardHtml(monthly){
     <div class="kpi-card"><div class="l">ปริมาณการใช้น้ำรวม</div><div class="v">${num(latest.kpi.waterTotal)}<span class="u">m³</span></div></div>
     <div class="kpi-card"><div class="l">ปริมาณการใช้ไฟฟ้า</div><div class="v">${num(latest.kpi.totalKwh)}<span class="u">kWh</span></div></div>
     <div class="kpi-card"><div class="l">ค่าไฟฟ้ารวม</div><div class="v">${thb(latest.kpi.elecCost)}<span class="u">บาท</span></div></div>
+    <div class="kpi-card"><div class="l">ปริมาณขี้เถ้ารวม</div><div class="v">${num(latest.kpi.ashKg)}<span class="u">kg</span></div><div class="l" style="margin-top:4px;">${latest.kpi.ashPctAvg==null?'—':num(latest.kpi.ashPctAvg,1)}% เฉลี่ยต่อการใช้กะลาปาล์ม</div></div>
   </div>
   <div class="row-2col">
     <div class="panel">
@@ -1576,6 +1580,8 @@ function exportCostExcel(monthly){
       ['ปริมาณการใช้น้ำรวม (m³)', m.kpi.waterTotal],
       ['ปริมาณการใช้ไฟฟ้า (kWh)', m.kpi.totalKwh],
       ['ค่าไฟฟ้ารวม (บาท)', m.kpi.elecCost],
+      ['ปริมาณขี้เถ้ารวม (kg)', m.kpi.ashKg],
+      ['% ขี้เถ้าเฉลี่ยต่อการใช้กะลาปาล์ม', m.kpi.ashPctAvg ?? ''],
       [],
     ];
     const header = ['รายการ','ปริมาณ','หน่วย','ราคา/หน่วย (THB)','ต้นทุนรวม (THB)'];
