@@ -128,7 +128,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .placeholder-box{border:1.5px dashed var(--panel-line); border-radius:14px; padding:44px 22px; text-align:center; color:var(--ink-soft); font-size:14.5px; background:#fbfbf9;}
   .note-line{font-size:12.5px; color:var(--ink-soft); margin-top:6px;}
   .summary-header{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;}
-  .summary-header .field{margin:0; min-width:150px;}
+  .summary-header .field{margin:0; min-width:110px;}
+  .summary-header-controls{display:flex; gap:10px; flex-wrap:wrap;}
   .summary-toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:10px; flex-wrap:wrap;}
   .summary-toolbar .count{font-size:13.5px; color:var(--ink-soft); font-weight:700;}
   .table-wrap{overflow-x:auto; border:1px solid var(--panel-line); border-radius:14px; margin-bottom:18px;}
@@ -381,9 +382,8 @@ let summarySubTab = 'daily';
 let summaryMonthlyMonth = null;
 let summaryAcctMonth = null;
 let summaryDailyMonth = null;
-let summaryDailyRange = null;
 let summaryRawDataTopic = 0;
-let summaryKpiDate = null;
+let summaryKpiDay = null;
 let currentDate = todayStr();
 let cache = {};
 let allDatesCache = null;
@@ -1082,23 +1082,6 @@ function groupByMonth(records){
   return g;
 }
 
-function getDailyRanges(monthKey){
-  const [y, m] = monthKey.split('-').map(Number);
-  const daysInMonth = new Date(y, m, 0).getDate();
-  const bounds = [[1,7],[8,14],[15,21],[22,28],[29,31]];
-  const labels = ['1–7','8–14','15–21','22–28','29–สิ้นเดือน'];
-  const ranges = [];
-  bounds.forEach(([s,e], i)=>{
-    if(s>daysInMonth) return;
-    ranges.push({label: labels[i], start: s, end: Math.min(e, daysInMonth)});
-  });
-  return ranges;
-}
-function findRangeIndexForDay(ranges, day){
-  const idx = ranges.findIndex(r=> day>=r.start && day<=r.end);
-  return idx>=0 ? idx : ranges.length-1;
-}
-
 async function buildMonthlyKPI(recs){
   let steamNo5=0, steamNo2=0, steamNo4=0, palmKg=0, totalKwh=0, elecCost=0, ashKg=0;
   for(const r of recs){
@@ -1192,21 +1175,33 @@ async function showSummary(){
     <button class="subtab-btn${summarySubTab==='accounting'?' active':''}" data-sub="accounting">รายงานส่งบัญชี</button>
   </div>`;
 
-  const summaryDates = records.map(r=>r.date);
-  if(summaryDates.length>0 && !summaryDates.includes(summaryKpiDate)){
-    summaryKpiDate = summaryDates.includes(todayStr()) ? todayStr() : summaryDates[summaryDates.length-1];
+  const monthGroups = groupByMonth(records);
+  const months = Object.keys(monthGroups).sort();
+  const todayMonth = todayStr().slice(0,7);
+  if(months.length>0 && !months.includes(summaryDailyMonth)){
+    summaryDailyMonth = months.includes(todayMonth) ? todayMonth : months[months.length-1];
   }
-  const kpiDateOptions = summaryDates.map(d=>`<option value="${d}"${d===summaryKpiDate?' selected':''}>${d}</option>`).join('');
-  const kpiDateSelectHtml = summaryDates.length>0
-    ? `<div class="field"><label>วันที่</label><select id="summaryKpiDateSelect">${kpiDateOptions}</select></div>`
+  const kpiDaysInMonth = months.length>0 ? daysInMonth(summaryDailyMonth) : 0;
+  if(months.length>0 && (summaryKpiDay==null || summaryKpiDay>kpiDaysInMonth)){
+    summaryKpiDay = (summaryDailyMonth===todayMonth) ? Number(todayStr().slice(8,10)) : 1;
+  }
+  const kpiDayOptions = Array.from({length:kpiDaysInMonth}, (_,i)=>i+1)
+    .map(d=>`<option value="${d}"${d===summaryKpiDay?' selected':''}>${d}</option>`).join('');
+  const monthOptions = months.map(mk=>`<option value="${mk}"${mk===summaryDailyMonth?' selected':''}>${mk}</option>`).join('');
+  const kpiControlsHtml = months.length>0
+    ? `<div class="summary-header-controls">
+        <div class="field"><label>วันที่</label><select id="summaryKpiDaySelect">${kpiDayOptions}</select></div>
+        <div class="field"><label>เดือน</label><select id="summaryKpiMonthSelect">${monthOptions}</select></div>
+      </div>`
     : '';
 
-  area.innerHTML = `<div class="panel"><div class="summary-header"><h2>📊 สรุปข้อมูล</h2>${kpiDateSelectHtml}</div><p class="sub">${records.length} วันที่มีข้อมูลบันทึกไว้</p>${subtabsHtml}<div id="subArea"></div></div>`;
+  area.innerHTML = `<div class="panel"><div class="summary-header"><h2>📊 สรุปข้อมูล</h2>${kpiControlsHtml}</div><p class="sub">${records.length} วันที่มีข้อมูลบันทึกไว้</p>${subtabsHtml}<div id="subArea"></div></div>`;
   document.querySelectorAll('.subtab-btn').forEach(b=>{
     b.onclick = ()=>{ summarySubTab = b.dataset.sub; showSummary(); };
   });
-  if(summaryDates.length>0){
-    document.getElementById('summaryKpiDateSelect').onchange = (e)=>{ summaryKpiDate = e.target.value; showSummary(); };
+  if(months.length>0){
+    document.getElementById('summaryKpiDaySelect').onchange = (e)=>{ summaryKpiDay = Number(e.target.value); showSummary(); };
+    document.getElementById('summaryKpiMonthSelect').onchange = (e)=>{ summaryDailyMonth = e.target.value; summaryKpiDay = null; showSummary(); };
   }
 
   const subArea = document.getElementById('subArea');
@@ -1224,33 +1219,17 @@ async function renderDailySummary(subArea, records){
   subArea.innerHTML = `<p class="sub">กำลังคำนวณ...</p>`;
 
   const monthGroups = groupByMonth(records);
-  const months = Object.keys(monthGroups).sort();
-  const todayMonth = todayStr().slice(0,7);
-  if(!months.includes(summaryDailyMonth)) summaryDailyMonth = months.includes(todayMonth) ? todayMonth : months[months.length-1];
+  const periodRecords = monthGroups[summaryDailyMonth] || [];
+  const {rows: b5rows} = await buildBoiler5DailyRows(periodRecords);
 
-  const ranges = getDailyRanges(summaryDailyMonth);
-  if(summaryDailyRange==null || summaryDailyRange>=ranges.length){
-    const day = summaryDailyMonth===todayMonth ? Number(todayStr().slice(8,10)) : ranges[0].start;
-    summaryDailyRange = findRangeIndexForDay(ranges, day);
-  }
-  const range = ranges[summaryDailyRange];
-  const periodRecords = (monthGroups[summaryDailyMonth]||[]).filter(r=>{
-    const day = Number(r.date.slice(8,10));
-    return day>=range.start && day<=range.end;
-  });
-
-  const {rows: b5rows, missingSettings} = await buildBoiler5DailyRows(periodRecords);
-
-  const kpiRecord = records.find(r=> r.date===summaryKpiDate);
+  const kpiDateStr = `${summaryDailyMonth}-${String(summaryKpiDay).padStart(2,'0')}`;
+  const kpiRecord = records.find(r=> r.date===kpiDateStr);
   const kpiRow = kpiRecord ? (await buildBoiler5DailyRows([kpiRecord])).rows[0] : null;
   const dayFuelKg = kpiRow?.fuelKg ?? null;
   const daySteam = kpiRow?.steam ?? null;
   const dayRate = kpiRow?.rate ?? null;
   const dayAsh = kpiRow?.ash ?? null;
   const dayAshPct = kpiRow?.ashPct ?? null;
-
-  const monthOptions = months.map(mk=>`<option value="${mk}"${mk===summaryDailyMonth?' selected':''}>${mk}</option>`).join('');
-  const rangeOptions = ranges.map((rg,i)=>`<option value="${i}"${i===summaryDailyRange?' selected':''}>${rg.label}</option>`).join('');
 
   let html = '';
   html += `<div class="kpi-row">
@@ -1260,46 +1239,11 @@ async function renderDailySummary(subArea, records){
     <div class="kpi-card"><div class="kpi-label">ปริมาณขี้เถ้า</div><div class="kpi-value">${dayAsh==null?'—':num(dayAsh)}<span class="kpi-unit">kg</span></div><div class="kpi-label" style="margin-top:4px;">${dayAshPct==null?'—':num(dayAshPct,1)}% ของกะลาปาล์มที่ใช้</div></div>
   </div>`;
   html += `<div class="summary-toolbar"><span class="count">สรุปคำนวณ Boiler no.5 รายวัน</span>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
-      <div class="field" style="min-width:120px;"><label>เดือน</label><select id="dailyMonthSelect">${monthOptions}</select></div>
-      <div class="field" style="min-width:150px;"><label>ช่วง</label><select id="dailyRangeSelect">${rangeOptions}</select></div>
-      <button class="btn btn-primary" id="exportBtn">⬇ ส่งออกเป็น Excel (.xlsx)</button>
-    </div></div>`;
-  html += `<details class="collapseTable"><summary>ตารางตัวเลขสรุปรายวัน (Boiler no.5)</summary>
-  <div class="table-wrap" style="margin-top:10px;"><table class="summary"><thead><tr>
-    <th>วันที่</th><th>กะลาปาล์มที่ใช้ (kg)</th><th>สตรีมที่ผลิตได้ (ton)</th><th>อัตราการใช้เชื้อเพลิง (kg/ton)</th>
-    <th>ราคา (บาท/kg)</th><th>ยอดเงินรวม (บาท)</th><th>ขี้เถ้ารวม (kg)</th><th>% ขี้เถ้า</th>
-  </tr></thead><tbody>`;
-  if(b5rows.length===0){
-    html += `<tr><td colspan="8" class="empty-state">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>`;
-  }
-  b5rows.forEach(r=>{
-    html += `<tr><td class="dcol">${r.date}</td>
-      <td>${num(r.fuelKg)}</td><td>${num(r.steam)}</td><td>${num(r.rate)}</td>
-      <td>${num(r.price)}</td><td>${num(r.cost)}</td><td>${num(r.ash)}</td><td>${num(r.ashPct,1)}</td></tr>`;
-  });
-  html += `</tbody></table></div></details>`;
-
-  const cols = flatColumns();
-  const rawTopicOptions = RAW_DATA_TOPICS.map((t,i)=>`<option value="${i}"${i===summaryRawDataTopic?' selected':''}>${t.label}</option>`).join('');
-  const rawCols = cols.filter(RAW_DATA_TOPICS[summaryRawDataTopic].filter);
-  html += `<details class="collapseTable"><summary>ตารางข้อมูลดิบทั้งหมด (ทุกหมวด)</summary>
-    <div class="field" style="min-width:220px; margin-top:10px;"><label>หัวข้อ</label><select id="rawDataTopicSelect">${rawTopicOptions}</select></div>
-    <div class="table-wrap" style="margin-top:10px;"><table class="summary"><thead><tr><th>วันที่</th>`;
-  rawCols.forEach(c=> html += `<th><span class="cat-label">${c.catLabel}</span>${c.header}</th>`);
-  html += `</tr></thead><tbody>`;
-  records.forEach(r=>{
-    html += `<tr><td class="dcol">${r.date}</td>`;
-    rawCols.forEach(c=> html += `<td>${c.get(r) || '—'}</td>`);
-    html += `</tr>`;
-  });
-  html += `</tbody></table></div></details>`;
+    <button class="btn btn-primary" id="exportBtn">⬇ ส่งออกเป็น Excel (.xlsx)</button>
+  </div>`;
   subArea.innerHTML = html;
 
-  document.getElementById('dailyMonthSelect').onchange = (e)=>{ summaryDailyMonth = e.target.value; summaryDailyRange = null; renderDailySummary(subArea, records); };
-  document.getElementById('dailyRangeSelect').onchange = (e)=>{ summaryDailyRange = Number(e.target.value); renderDailySummary(subArea, records); };
-  document.getElementById('rawDataTopicSelect').onchange = (e)=>{ summaryRawDataTopic = Number(e.target.value); renderDailySummary(subArea, records); };
-  document.getElementById('exportBtn').onclick = ()=>exportExcel(records, cols, b5rows);
+  document.getElementById('exportBtn').onclick = ()=>exportExcel(records, flatColumns(), b5rows);
 }
 
 async function renderMonthlyCostView(subArea, records){
@@ -1335,11 +1279,28 @@ async function renderMonthlyCostView(subArea, records){
   html += `<tr class="total"><td colspan="4">รวมต้นทุนทั้งหมด</td><td class="num">${thb(m.grandTotal)} THB</td></tr>`;
   html += `</tbody></table></details></div>`;
 
+  const cols = flatColumns();
+  const monthRecords = records.filter(r=>r.date.slice(0,7)===m.monthKey);
+  const rawTopicOptions = RAW_DATA_TOPICS.map((t,i)=>`<option value="${i}"${i===summaryRawDataTopic?' selected':''}>${t.label}</option>`).join('');
+  const rawCols = cols.filter(RAW_DATA_TOPICS[summaryRawDataTopic].filter);
+  html += `<details class="collapseTable"><summary>ตารางข้อมูลดิบทั้งหมด (ทุกหมวด)</summary>
+    <div class="field" style="min-width:220px; margin-top:10px;"><label>หัวข้อ</label><select id="rawDataTopicSelect">${rawTopicOptions}</select></div>
+    <div class="table-wrap" style="margin-top:10px;"><table class="summary"><thead><tr><th>วันที่</th>`;
+  rawCols.forEach(c=> html += `<th><span class="cat-label">${c.catLabel}</span>${c.header}</th>`);
+  html += `</tr></thead><tbody>`;
+  monthRecords.forEach(r=>{
+    html += `<tr><td class="dcol">${r.date}</td>`;
+    rawCols.forEach(c=> html += `<td>${c.get(r) || '—'}</td>`);
+    html += `</tr>`;
+  });
+  html += `</tbody></table></div></details>`;
+
   subArea.innerHTML = html;
 
   document.getElementById('monthlyCostMonthSelect').onchange = (e)=>{ summaryMonthlyMonth = e.target.value; renderMonthlyCostView(subArea, records); };
   document.getElementById('exportCostBtn').onclick = ()=>exportCostExcel([m]);
   document.getElementById('exportDashboardBtn').onclick = ()=>exportDashboardHtml([m], records);
+  document.getElementById('rawDataTopicSelect').onchange = (e)=>{ summaryRawDataTopic = Number(e.target.value); renderMonthlyCostView(subArea, records); };
 }
 
 function exportDashboardHtml(monthly, records){
