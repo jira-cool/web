@@ -1478,7 +1478,7 @@ async function renderAccountingView(subArea, allRecords){
     <button class="btn btn-primary" id="exportAcctBtn">⬇ ส่งออกเป็น Excel (.xlsx)</button></div>`;
 
   const overviewRows = [];
-  html += `<details class="acctGroup" open><summary>📋 สรุปยอดรวมรายวัน (Bunker Oil / LPG / Palm Shell / Water)</summary>
+  html += `<details class="acctGroup"><summary>📋 สรุปยอดรวมรายวัน (Bunker Oil / LPG / Palm Shell / Water)</summary>
     <div class="table-wrap" style="margin-top:10px;"><table class="summary"><thead><tr>
     <th>วันที่</th><th>น้ำมันเตา ใช้</th><th>ราคา</th><th>มูลค่า</th>
     <th>กะลาปาล์ม ใช้</th><th>ราคา</th><th>มูลค่า</th>
@@ -1505,7 +1505,7 @@ async function renderAccountingView(subArea, allRecords){
   html += `<tr class="total"><td colspan="3">รวม</td><td>${num(ovBunkNet)}</td><td colspan="2"></td><td>${num(ovPalmNet)}</td><td colspan="2"></td><td>${num(ovWaterNet)}</td><td></td><td>${num(ovGrand)}</td></tr>`;
   html += `</tbody></table></div></details>`;
 
-  html += `<details class="acctGroup" open><summary>🌰 Palm Shell Stock Card</summary>
+  html += `<details class="acctGroup"><summary>🌰 Palm Shell Stock Card</summary>
     <div class="table-wrap" style="margin-top:10px;"><table class="summary"><thead><tr>
     <th>วันที่</th><th>ยอดยกมา</th><th>เที่ยวที่ 1</th><th>เที่ยวที่ 2</th><th>เที่ยวที่ 3</th><th>เที่ยวที่ 4</th><th>เที่ยวที่ 5</th><th>เที่ยวที่ 6</th><th>รวม (kg)</th><th>ใช้ป้อนเตา</th><th>คงเหลือ</th><th>kg/hr</th><th>ASH รวม</th><th>%ขี้เถ้า</th><th>ขี้เถ้านำออกสะสม</th>
     </tr></thead><tbody>`;
