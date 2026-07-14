@@ -16,7 +16,7 @@
     <h1>Boiler Energy Data</h1>
     <p>ข้อมูล Boiler / Palm shell / Bunk oil / Water / Electricity / LPG</p>
     <div class="hero-row">
-      <div class="date-field"><label for="entryDate">วันที่</label><input type="date" id="entryDate"></div>
+      <div class="date-field"><button type="button" class="btn btn-ghost dayStepBtn" id="lastDayBtn" aria-label="วันก่อนหน้า">‹ Last Day</button><label for="entryDate">วันที่</label><input type="date" id="entryDate"><button type="button" class="btn btn-ghost dayStepBtn" id="nextDayBtn" aria-label="วันถัดไป">Next Day ›</button></div>
       <span id="statusPill" class="status-pill empty">ยังไม่มีข้อมูลวันนี้</span>
     </div>
   </div>
@@ -243,6 +243,12 @@ function todayStr(){
 function daysInMonth(dateStr){
   const [y,m] = dateStr.split('-').map(Number);
   return new Date(y, m, 0).getDate();
+}
+function shiftDateStr(dateStr, delta){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  dt.setDate(dt.getDate()+delta);
+  return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
 }
 
 function emptyRecord(date){
@@ -1787,6 +1793,17 @@ async function refresh(){
 document.getElementById('entryDate').value = currentDate;
 document.getElementById('entryDate').addEventListener('change', async (e)=>{
   currentDate = e.target.value || todayStr();
+  await refresh();
+});
+
+document.getElementById('lastDayBtn').addEventListener('click', async ()=>{
+  currentDate = shiftDateStr(currentDate, -1);
+  document.getElementById('entryDate').value = currentDate;
+  await refresh();
+});
+document.getElementById('nextDayBtn').addEventListener('click', async ()=>{
+  currentDate = shiftDateStr(currentDate, 1);
+  document.getElementById('entryDate').value = currentDate;
   await refresh();
 });
 

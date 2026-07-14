@@ -24,6 +24,8 @@
   .date-field label{font-size:12px; color:#c7d0c9; letter-spacing:.06em; text-transform:uppercase;}
   .date-field input{background:transparent; border:none; color:#f4f1ea; font-family:var(--mono); font-size:16px; font-weight:600;}
   .date-field input::-webkit-calendar-picker-indicator{filter:invert(1); opacity:.7;}
+  .date-field .dayStepBtn{padding:6px 12px; font-size:13px; background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.25); color:#f4f1ea;}
+  .date-field .dayStepBtn:hover{background:rgba(255,255,255,.2); border-color:rgba(255,255,255,.4); color:#f4f1ea;}
   .status-pill{font-size:13px; padding:6px 12px; border-radius:999px; font-weight:600; letter-spacing:.02em;}
   .status-pill.saved{background:rgba(63,138,92,.18); color:#8fd6ab; border:1px solid rgba(143,214,171,.3);}
   .status-pill.empty{background:rgba(255,255,255,.08); color:#c7d0c9; border:1px solid rgba(255,255,255,.15);}
