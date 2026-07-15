@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Boiler Energy Data</title>
 <script src="js/xlsx.full.min.js"></script>
+<script src="js/exceljs.min.js"></script>
 <script src="js/chart.min.js"></script>
 <link rel="stylesheet" href="css/boiler-energy-edge-v8.css">
 
@@ -1573,11 +1574,66 @@ function buildWaterMetersSheet(records, monthTag){
   return ws;
 }
 
-function exportWaterUsageExcel(records){
-  const wb = XLSX.utils.book_new();
+// ตารางมิเตอร์น้ำแบบมีสี (ใช้ ExcelJS เพราะ SheetJS รุ่นฟรีเขียนสีเซลล์ไม่ได้)
+// แถวชื่อหมวด (ครอบ 2 คอลัมน์ Meter/m3) ใส่สีเหลืองตัวหนา ตรงกับไฟล์ต้นฉบับ
+async function buildWaterMetersWorkbookColored(records, monthTag){
+  const usedFields = getUsedWaterFields(records);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Water');
+  const ncol = 1 + usedFields.length*2;
+
+  ws.mergeCells(1,1,1,ncol);
+  ws.getCell(1,1).value = 'Water Usage Daily Report';
+  ws.mergeCells(2,1,2,ncol);
+  ws.getCell(2,1).value = `Engineering Department / Power Plant Section / Boiler Unit — ${monthTag}`;
+
+  const headerFill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFFFFF00'} };
+  ws.getCell(5,1).value = 'วันที่';
+  usedFields.forEach((f,i)=>{
+    const c0 = 2+i*2;
+    ws.mergeCells(4, c0, 4, c0+1);
+    const catCell = ws.getCell(4, c0);
+    catCell.value = WATER_METER_LABELS[f.k] || f.k;
+    catCell.fill = headerFill;
+    catCell.font = { bold:true };
+    catCell.alignment = { horizontal:'center' };
+    ws.getCell(5, c0).value = `Meter ${f.k.toUpperCase()}`;
+    ws.getCell(5, c0+1).value = 'm3';
+  });
+
+  records.forEach((r,i)=>{
+    const row = 6+i;
+    ws.getCell(row,1).value = new Date(r.date+'T00:00:00');
+    ws.getCell(row,1).numFmt = 'dd/mm/yyyy';
+    usedFields.forEach((f,fi)=>{
+      const c0 = 2+fi*2;
+      const w = r.water?.[f.k] || {};
+      const meterNum = parseFloat(w.meter);
+      const usageNum = parseFloat(w.usage);
+      ws.getCell(row,c0).value = isNaN(meterNum) ? null : meterNum;
+      ws.getCell(row,c0+1).value = isNaN(usageNum) ? null : usageNum;
+    });
+  });
+
+  ws.getColumn(1).width = 12;
+  usedFields.forEach((f,i)=>{
+    ws.getColumn(2+i*2).width = 12;
+    ws.getColumn(2+i*2+1).width = 9;
+  });
+
+  return wb;
+}
+
+async function exportWaterUsageExcel(records){
   const monthTag = records[0]?.date?.slice(0,7) || '';
-  XLSX.utils.book_append_sheet(wb, buildWaterMetersSheet(records, monthTag), 'Water');
-  XLSX.writeFile(wb, `water-usage-${monthTag}.xlsx`);
+  const wb = await buildWaterMetersWorkbookColored(records, monthTag);
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `water-usage-${monthTag}.xlsx`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 async function exportAccountingExcel(records, psc, sc, overviewRows){
