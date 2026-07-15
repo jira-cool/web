@@ -1982,6 +1982,15 @@ async function buildWaterMetersWorkbookColored(records, monthTag){
     ws.getColumn(2+i*2+1).width = 9;
   });
 
+  // เส้นตารางบาง ครอบตั้งแต่แถวหัวตาราง (4) ถึงแถวข้อมูลสุดท้าย ให้อ่านง่ายขึ้น
+  const thinBorder = { style:'thin' };
+  const lastRow = 5 + records.length;
+  for(let r=4; r<=lastRow; r++){
+    for(let c=1; c<=ncol; c++){
+      ws.getCell(r,c).border = { top:thinBorder, left:thinBorder, bottom:thinBorder, right:thinBorder };
+    }
+  }
+
   return wb;
 }
 
