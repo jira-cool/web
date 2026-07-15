@@ -281,9 +281,20 @@ function sanitizeNumericInput(v){
   return v.replace(/,/g,'').replace(/[^0-9.\-]/g,'');
 }
 
+function formatMoisturePercent(v){
+  if(v==null || v==='') return '';
+  let num = parseFloat(String(v).replace(/[^0-9.\-]/g,''));
+  if(isNaN(num)) return '';
+  if(Math.abs(num) > 0 && Math.abs(num) <= 1) num = num * 100;
+  return num.toFixed(2)+'%';
+}
+
 document.addEventListener('input',(e)=>{
   const t=e.target;
-  if(t && t.matches('input[inputmode="decimal"]')){
+  if(t && t.matches('input[data-percent="1"]')){
+    const cleaned = t.value.replace(/,/g,'').replace(/[^0-9.\-]/g,'');
+    if(cleaned !== t.value) t.value = cleaned;
+  } else if(t && t.matches('input[inputmode="decimal"]')){
     const noCommas = t.value.replace(/,/g,'');
     if(/[^0-9.\-]/.test(noCommas)){
       const label = t.closest('.field')?.querySelector('label')?.textContent?.trim() || 'ช่องนี้';
@@ -295,6 +306,20 @@ document.addEventListener('input',(e)=>{
   }
   bindElectricityTotal();
 }, true);
+
+document.addEventListener('focusin', (e)=>{
+  const t=e.target;
+  if(t && t.matches('input[data-percent="1"]')){
+    const num = parseFloat(String(t.value).replace(/[^0-9.\-]/g,''));
+    t.value = isNaN(num) ? '' : String(num);
+  }
+});
+document.addEventListener('focusout', (e)=>{
+  const t=e.target;
+  if(t && t.matches('input[data-percent="1"]')){
+    t.value = formatMoisturePercent(t.value);
+  }
+});
 
 function bindElectricityTotal(){
   const a=document.querySelector('input[data-cat="electricity"][data-key="rateA"]');
@@ -789,9 +814,9 @@ async function renderForm(rec){
     trips.forEach((t,i)=>{
       html += `<tr><td>เที่ยว ${i+1}</td>
         <td><input type="text" inputmode="decimal" data-cat="palmShell" data-path="trips" data-key="${i}_supplierWeight" value="${t.supplierWeight ?? ''}"></td>
-        <td><input type="text" inputmode="decimal" data-cat="palmShell" data-path="trips" data-key="${i}_supplierMoisture" value="${t.supplierMoisture ?? ''}"></td>
+        <td><input type="text" inputmode="decimal" data-cat="palmShell" data-path="trips" data-key="${i}_supplierMoisture" data-percent="1" value="${formatMoisturePercent(t.supplierMoisture)}"></td>
         <td><input type="text" inputmode="decimal" data-cat="palmShell" data-path="trips" data-key="${i}_companyWeight" value="${t.companyWeight ?? ''}"></td>
-        <td><input type="text" inputmode="decimal" data-cat="palmShell" data-path="trips" data-key="${i}_companyMoisture" value="${t.companyMoisture ?? ''}"></td></tr>`;
+        <td><input type="text" inputmode="decimal" data-cat="palmShell" data-path="trips" data-key="${i}_companyMoisture" data-percent="1" value="${formatMoisturePercent(t.companyMoisture)}"></td></tr>`;
     });
     html += `</tbody></table></div>`;
 
@@ -1003,7 +1028,7 @@ async function onSave(){
       const [idx, field] = key.split('_');
       if(!rec.palmShell) rec.palmShell = {trips:Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''})), price:'', ashRemoved:'', openingOverride:''};
       if(!rec.palmShell.trips[idx]) rec.palmShell.trips[idx] = {supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''};
-      rec.palmShell.trips[idx][field] = inp.value;
+      rec.palmShell.trips[idx][field] = (field==='supplierMoisture'||field==='companyMoisture') ? formatMoisturePercent(inp.value) : inp.value;
     } else if(cat==='boiler'){
       if(!rec.boiler[path]) rec.boiler[path]={};
       if(key.includes('.')){
