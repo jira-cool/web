@@ -461,7 +461,7 @@ function renderTabs(rec){
   const sumBtn = document.createElement('button');
   sumBtn.className = 'tab-btn summary'+(activeTab==='__summary__' ? ' active':'');
   sumBtn.innerHTML = '<span class="dot" style="background:var(--steel)"></span><span>📊 Report</span>';
-  sumBtn.onclick = ()=>{ activeTab='__summary__'; showSummary(); };
+  sumBtn.onclick = async ()=>{ activeTab='__summary__'; renderTabs(await loadRecord(currentDate)); showSummary(); };
   bar.appendChild(sumBtn);
   CATEGORIES.forEach(c=>{
     const btn = document.createElement('button');
