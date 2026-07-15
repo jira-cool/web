@@ -2151,7 +2151,8 @@ function resolveSteamCostColumns(ws){
 
   const ashIdx = findColIndex(ws, 'ขี้เถ้า');
   if(ashIdx!=null){
-    const hasSplit = cellTextAt(ws, ashIdx+1).trim()==='2';
+    const hdrCell = ws[XLSX.utils.encode_cell({r:3, c:ashIdx+1})];
+    const hasSplit = hdrCell!=null && hdrCell.v!=null && String(hdrCell.v).trim()==='2';
     R.ash = hasSplit
       ? {r1:colLetter(ashIdx), r2:colLetter(ashIdx+1), r3:colLetter(ashIdx+2)}
       : {r1:colLetter(ashIdx), r2:null, r3:null};
