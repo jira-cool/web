@@ -1857,7 +1857,9 @@ function importGetCell(ws, col, row){
 }
 function importSetIf(obj,key,val){ if(val!=='' && val!=null) obj[key]=val; }
 function importFmtDate(d){
-  const yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  // ชดเชยความคลาดเคลื่อนไม่กี่วินาทีที่ SheetJS คำนวณใกล้เที่ยงคืน (จาก timezone offset ของไทยในอดีต) ที่ทำให้ getFullYear/getMonth/getDate อ่านค่าเพี้ยนไปวันก่อนหน้า
+  const fixed = new Date(d.getTime() + 12*60*60*1000);
+  const yyyy=fixed.getFullYear(), mm=String(fixed.getMonth()+1).padStart(2,'0'), dd=String(fixed.getDate()).padStart(2,'0');
   return `${yyyy}-${mm}-${dd}`;
 }
 
