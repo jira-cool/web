@@ -211,12 +211,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           <div class="field"><label>ไฟล์ Excel (.xlsx)</label><input type="file" id="importWaterFile" accept=".xlsx,.xlsm"></div>
           <div class="field"><label>ชื่อ Sheet</label><input type="text" id="importWaterSheetName" value="0726"></div>
         </div>
-        <div class="field" style="margin-top:8px;">
-          <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
-            <input type="checkbox" id="importWaterClearBefore">
-            ลบข้อมูลค้างของวันที่ก่อนหน้าช่วงที่นำเข้านี้ทิ้ง (ใช้เมื่อเคย import ผิดวันที่มาก่อน ทำให้มีข้อมูลหลอกอยู่ในระบบ)
-          </label>
-        </div>
         <div class="actions" style="justify-content:flex-start; margin-top:10px;">
           <button class="btn btn-primary" id="importWaterBtn">นำเข้ามิเตอร์น้ำ</button>
         </div>
@@ -1987,13 +1981,11 @@ const BOILER_FW_METER_MAP = {
 async function handleWaterExcelImport(){
   const fileInput = document.getElementById('importWaterFile');
   const sheetNameInput = document.getElementById('importWaterSheetName');
-  const clearBeforeInput = document.getElementById('importWaterClearBefore');
   const logEl = document.getElementById('importWaterLog');
   const file = fileInput.files[0];
   if(!file){ logEl.textContent = 'กรุณาเลือกไฟล์ Excel ก่อน'; return; }
   const sheetName = (sheetNameInput.value||'').trim();
   if(!sheetName){ logEl.textContent = 'กรุณาระบุชื่อ sheet'; return; }
-  const clearBefore = !!(clearBeforeInput && clearBeforeInput.checked);
   logEl.textContent = 'กำลังอ่านไฟล์...';
 
   let wb;
@@ -2011,13 +2003,11 @@ async function handleWaterExcelImport(){
   }
 
   let imported=0;
-  let earliestDateStr = null;
   const lastMeter = {};
   for(let row=5; row<=60; row++){
     const dCell = ws['A'+row];
     if(!dCell || !(dCell.v instanceof Date)) continue;
     const dateStr = importFmtDate(dCell.v);
-    if(earliestDateStr==null || dateStr<earliestDateStr) earliestDateStr = dateStr;
     const rec = await loadRecord(dateStr);
     let touched=false;
     for(const [waterKey, col] of Object.entries(WATER_IMPORT_MAP)){
@@ -2068,22 +2058,11 @@ async function handleWaterExcelImport(){
     if(touched){ await saveRecord(rec); imported++; }
   }
 
-  let clearedCount = 0;
-  if(clearBefore && earliestDateStr!=null){
-    const all = await window.storage.list('entry:', true);
-    const staleKeys = (all && all.keys ? all.keys : []).filter(k => k.replace('entry:','') < earliestDateStr);
-    for(const key of staleKeys){
-      await window.storage.delete(key);
-      clearedCount++;
-    }
-  }
-
   allDatesCache = null;
   stockCardCache = null;
   palmStockCardCache = null;
-  const clearedNote = clearedCount>0 ? ` (ลบข้อมูลค้างก่อนหน้า ${clearedCount} รายการ)` : '';
   logEl.textContent = imported>0
-    ? `นำเข้ามิเตอร์น้ำสำเร็จ ${imported} วัน จาก sheet "${sheetName}"${clearedNote} — เลือกวันที่ด้านบนเพื่อตรวจสอบ`
+    ? `นำเข้ามิเตอร์น้ำสำเร็จ ${imported} วัน จาก sheet "${sheetName}" — เลือกวันที่ด้านบนเพื่อตรวจสอบ`
     : `ไม่พบแถวข้อมูลรายวันใน sheet "${sheetName}" (ตรวจสอบว่าคอลัมน์ A เป็นวันที่ตั้งแต่แถวที่ 5)`;
   await refresh();
 }
