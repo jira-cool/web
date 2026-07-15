@@ -269,7 +269,7 @@ function emptyRecord(date){
       no4:{ fw:{meter:'',usage:''}, fuel:{meter:'',usage:''}, hours:{meter:'',usage:''}, blowdown:{valveSec:'',timesPerDay:''} },
     },
     palmShell:{ trips: Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''})), price:'', ashRemoved:'', openingOverride:'' },
-    bunkOil:{ received:'', price:'', openingOverride:'' },
+    bunkOil:{ received:'', price:'', openingOverride:'', tank1Override:'', tank2Override:'' },
     lpg:{},
     water:Object.assign(Object.fromEntries(WATER_METER_KEYS.map(k=>[k,{meter:'',usage:''}])), {price:''}),
     electricity:{ rateA:'', rateB:'', rateC:'', total:'', ft:'', kva:'' }
@@ -318,8 +318,14 @@ async function computeStockCard(){
     const fuelUsed = (isNaN(u2)?0:u2) + (isNaN(u4)?0:u4);
     const actualUse = fuelUsed * BUNK_ADJ;
     const received = parseFloat(rec.bunkOil?.received) || 0;
-    const closing = opening + received - actualUse;
-    map[d] = {opening, received, fuelUsed, actualUse, closing, tank: closing/2, hasData};
+    let closing = opening + received - actualUse;
+    let tank1 = closing/2, tank2 = closing/2;
+    const ovT1 = parseFloat(rec.bunkOil?.tank1Override);
+    const ovT2 = parseFloat(rec.bunkOil?.tank2Override);
+    if(!isNaN(ovT1) && !isNaN(ovT2)){
+      tank1 = ovT1; tank2 = ovT2; closing = ovT1 + ovT2;
+    }
+    map[d] = {opening, received, fuelUsed, actualUse, closing, tank1, tank2, hasData};
     opening = closing;
   }
   stockCardCache = map;
@@ -684,8 +690,8 @@ async function renderForm(rec){
       html += `<p class="missing-price">รอข้อมูลมิเตอร์เชื้อเพลิง Boiler no.2 / no.4 ของวันนี้ — Stock Card จะคำนวณให้เมื่อกรอกมิเตอร์แล้ว</p>`;
     } else {
       html += `<table class="cost"><tbody>
-        <tr><td>Tank 1 คงเหลือ</td><td class="num">${num(today.tank,2)} liter</td></tr>
-        <tr><td>Tank 2 คงเหลือ</td><td class="num">${num(today.tank,2)} liter</td></tr>
+        <tr><td>Tank 1 คงเหลือ</td><td class="num">${num(today.tank1,2)} liter</td></tr>
+        <tr><td>Tank 2 คงเหลือ</td><td class="num">${num(today.tank2,2)} liter</td></tr>
         <tr class="total"><td>รวมคงเหลือทั้งหมด</td><td class="num">${num(today.closing,2)} liter</td></tr>
       </tbody></table>`;
     }
@@ -1369,7 +1375,7 @@ async function renderAccountingView(subArea, allRecords){
   records.forEach(r=>{
     const s = sc[r.date] || {};
     sumBunkReceived += s.received||0; sumBunkActual += s.actualUse||0;
-    html += `<tr><td class="dcol">${r.date}</td><td>${num(s.opening)}</td><td>${num(s.received)}</td><td>${num(s.fuelUsed)}</td><td>${num(s.actualUse)}</td><td>${num(s.closing)}</td><td>${num(s.tank)}</td><td>${num(s.tank)}</td></tr>`;
+    html += `<tr><td class="dcol">${r.date}</td><td>${num(s.opening)}</td><td>${num(s.received)}</td><td>${num(s.fuelUsed)}</td><td>${num(s.actualUse)}</td><td>${num(s.closing)}</td><td>${num(s.tank1)}</td><td>${num(s.tank2)}</td></tr>`;
   });
   html += `<tr class="total"><td colspan="2">รวม</td><td>${num(sumBunkReceived)}</td><td></td><td>${num(sumBunkActual)}</td><td colspan="3"></td></tr>`;
   html += `</tbody></table></div></details>`;
@@ -1517,7 +1523,7 @@ async function exportAccountingExcel(records, psc, sc, overviewRows){
   const bunkHeader = ['วันที่','ยอดยกมา','รับเข้า','ใช้ดิบ','ใช้จริง ×1.04','คงเหลือ','Tank1','Tank2'];
   const bunkRows = records.map(r=>{
     const s = sc[r.date]||{};
-    return [r.date, s.opening??'', s.received??'', s.fuelUsed??'', s.actualUse??'', s.closing??'', s.tank??'', s.tank??''];
+    return [r.date, s.opening??'', s.received??'', s.fuelUsed??'', s.actualUse??'', s.closing??'', s.tank1??'', s.tank2??''];
   });
   XLSX.utils.book_append_sheet(wb, acctTitledSheet(
     'Bunker Oil Stock Card Daily Report', `Engineering Department / Power Plant Section / Boiler Unit — ${monthTag}`, bunkHeader, bunkRows,
@@ -1818,6 +1824,12 @@ async function handleUtilityExcelImport(){
           if(meterVal!==''){ rec.boiler[boilerKey].fuel.meter = meterVal; touched=true; }
           if(usageVal!==''){ rec.boiler[boilerKey].fuel.usage = usageVal; touched=true; }
         }
+        const chargeVal = importGetCell(ws, 'G', row);
+        if(chargeVal!==''){ rec.bunkOil.received = chargeVal; touched=true; }
+        const tank1Val = importGetCell(ws, 'P', row);
+        const tank2Val = importGetCell(ws, 'Q', row);
+        if(tank1Val!==''){ rec.bunkOil.tank1Override = tank1Val; touched=true; }
+        if(tank2Val!==''){ rec.bunkOil.tank2Override = tank2Val; touched=true; }
         if(touched){ await saveRecord(rec); fuelDays++; }
       }
     }
