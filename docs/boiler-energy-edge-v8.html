@@ -421,6 +421,7 @@ let activeTab = CATEGORIES[0].key;
 let summarySubTab = 'daily';
 let summaryMonthlyMonth = null;
 let summaryAcctMonth = null;
+let summaryWaterMonth = null;
 let summaryDailyMonth = null;
 let summaryRawDataTopic = 0;
 let summaryKpiDay = null;
@@ -1277,6 +1278,7 @@ async function showSummary(){
     <button class="subtab-btn${summarySubTab==='daily'?' active':''}" data-sub="daily">สรุปรายวัน</button>
     <button class="subtab-btn${summarySubTab==='monthlyCost'?' active':''}" data-sub="monthlyCost">ต้นทุนรายเดือน</button>
     <button class="subtab-btn${summarySubTab==='accounting'?' active':''}" data-sub="accounting">รายงานส่งบัญชี</button>
+    <button class="subtab-btn${summarySubTab==='water'?' active':''}" data-sub="water">การใช้น้ำ</button>
   </div>`;
 
   const monthGroups = groupByMonth(records);
@@ -1317,6 +1319,7 @@ async function showSummary(){
 
   if(summarySubTab==='daily') await renderDailySummary(subArea, records);
   else if(summarySubTab==='monthlyCost') await renderMonthlyCostView(subArea, records);
+  else if(summarySubTab==='water') await renderWaterUsageView(subArea, records);
   else await renderAccountingView(subArea, records);
 }
 
@@ -1708,6 +1711,41 @@ async function renderAccountingView(subArea, allRecords){
   document.getElementById('exportAcctBtn').onclick = ()=>exportAccountingExcel(records, psc, sc, overviewRows);
 }
 
+async function renderWaterUsageView(subArea, allRecords){
+  const months = Array.from(new Set(allRecords.map(r=>r.date.slice(0,7)))).sort();
+  if(!months.includes(summaryWaterMonth)) summaryWaterMonth = months[months.length-1];
+  const records = allRecords.filter(r=>r.date.slice(0,7)===summaryWaterMonth);
+
+  const monthOptions = months.map(mk=>`<option value="${mk}"${mk===summaryWaterMonth?' selected':''}>${mk}</option>`).join('');
+  let html = `<div class="summary-toolbar">
+    <div class="field" style="min-width:160px;"><label>เลือกเดือน</label><select id="waterMonthSelect">${monthOptions}</select></div>
+    <span class="count">การใช้น้ำรายมิเตอร์ (เดือน ${summaryWaterMonth})</span>
+    <button class="btn btn-primary" id="exportWaterBtn">⬇ ส่งออกเป็น Excel (.xlsx)</button></div>`;
+
+  const usedFields = getUsedWaterFields(records);
+  if(usedFields.length===0){
+    html += `<div class="empty-state">ไม่มีข้อมูลมิเตอร์น้ำในเดือนนี้</div>`;
+  } else {
+    html += `<div class="table-wrap" style="margin-top:10px;"><table class="summary"><thead>
+      <tr><th rowspan="2">วันที่</th>${usedFields.map(f=>`<th colspan="2">${WATER_METER_LABELS[f.k]||f.k}</th>`).join('')}</tr>
+      <tr>${usedFields.map(f=>`<th>Meter ${f.k.toUpperCase()}</th><th>ปริมาณใช้ (m³)</th>`).join('')}</tr>
+      </thead><tbody>`;
+    for(const r of records){
+      html += `<tr><td class="dcol">${r.date}</td>`;
+      for(const f of usedFields){
+        const w = r.water?.[f.k] || {};
+        html += `<td>${w.meter ?? '—'}</td><td>${num(parseFloat(w.usage))}</td>`;
+      }
+      html += `</tr>`;
+    }
+    html += `</tbody></table></div>`;
+  }
+
+  subArea.innerHTML = html;
+  document.getElementById('waterMonthSelect').onchange = (e)=>{ summaryWaterMonth = e.target.value; renderWaterUsageView(subArea, allRecords); };
+  document.getElementById('exportWaterBtn').onclick = ()=>exportWaterUsageExcel(records);
+}
+
 function exportExcel(records, cols, b5rows){
   const wb = XLSX.utils.book_new();
   const b5header = ['วันที่','กะลาปาล์มที่ใช้ (kg)','สตรีมที่ผลิตได้ (ton)','อัตราการใช้เชื้อเพลิง (kg/ton)','ราคา (บาท/kg)','ยอดเงินรวม (บาท)','ขี้เถ้ารวม (kg)','% ขี้เถ้า'];
@@ -1795,14 +1833,20 @@ const WATER_METER_LABELS = {
   m28:'UV. Phase 6', m29:'Defrost T/F', m31:'Defrost T/F 7',
 };
 
-// ตารางมิเตอร์น้ำครบทุกตัว หน้าตาแบบไฟล์ต้นฉบับ (ชื่อหมวด + Meter/m3 ต่อมิเตอร์)
-// ข้ามมิเตอร์ที่ทั้งเดือนไม่มีข้อมูลเลย เพื่อไม่ให้ตารางถูกบีบเหมือนต้นฉบับ
-function buildWaterMetersSheet(records, monthTag){
+// คืน field ของมิเตอร์น้ำที่มีข้อมูลอย่างน้อย 1 วันในช่วง records ที่ส่งมา
+// ใช้ทั้งตอนสร้างตาราง Excel และตาราง HTML บนหน้าเว็บ เพื่อไม่ให้ตรรกะ "มิเตอร์ไหนมีข้อมูล" ซ้ำกัน
+function getUsedWaterFields(records){
   const waterFields = CATEGORIES.find(c=>c.key==='water').fields.filter(f=>f.k!=='price');
-  const usedFields = waterFields.filter(f=>records.some(r=>{
+  return waterFields.filter(f=>records.some(r=>{
     const w = r.water?.[f.k];
     return w && ((w.meter!=null && w.meter!=='') || (w.usage!=null && w.usage!==''));
   }));
+}
+
+// ตารางมิเตอร์น้ำครบทุกตัว หน้าตาแบบไฟล์ต้นฉบับ (ชื่อหมวด + Meter/m3 ต่อมิเตอร์)
+// ข้ามมิเตอร์ที่ทั้งเดือนไม่มีข้อมูลเลย เพื่อไม่ให้ตารางถูกบีบเหมือนต้นฉบับ
+function buildWaterMetersSheet(records, monthTag){
+  const usedFields = getUsedWaterFields(records);
   const ncol = 1 + usedFields.length*2;
   const catRow = ['', ...usedFields.flatMap(f=>[WATER_METER_LABELS[f.k]||f.k, ''])];
   const subRow = ['วันที่', ...usedFields.flatMap(f=>[`Meter ${f.k.toUpperCase()}`, 'm3'])];
@@ -1842,6 +1886,13 @@ function buildWaterMetersSheet(records, monthTag){
     }
   }
   return ws;
+}
+
+function exportWaterUsageExcel(records){
+  const wb = XLSX.utils.book_new();
+  const monthTag = records[0]?.date?.slice(0,7) || '';
+  XLSX.utils.book_append_sheet(wb, buildWaterMetersSheet(records, monthTag), 'Water');
+  XLSX.writeFile(wb, `water-usage-${monthTag}.xlsx`);
 }
 
 async function exportAccountingExcel(records, psc, sc, overviewRows){
