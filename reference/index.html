@@ -1603,7 +1603,9 @@ async function buildWaterMetersWorkbookColored(records, monthTag){
 
   records.forEach((r,i)=>{
     const row = 6+i;
-    ws.getCell(row,1).value = new Date(r.date+'T00:00:00');
+    // ใช้ Date.UTC ตรงๆ กันปัญหาเดียวกับ timezone ในไทย (UTC+7) ที่ทำให้เที่ยงคืนตามเวลาท้องถิ่นเพี้ยนไปเป็นวันก่อนหน้าตอนแปลงเป็น UTC
+    const [yy,mm,dd] = r.date.split('-').map(Number);
+    ws.getCell(row,1).value = new Date(Date.UTC(yy, mm-1, dd));
     ws.getCell(row,1).numFmt = 'dd/mm/yyyy';
     usedFields.forEach((f,fi)=>{
       const c0 = 2+fi*2;
