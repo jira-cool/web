@@ -1342,6 +1342,11 @@ async function renderDailySummary(subArea, records){
   const steam4 = kpiRecord ? await computeSteamSimple(kpiRecord, 'no4') : null;
   const fuel4 = kpiRecord ? parseFloat(kpiRecord.boiler?.no4?.fuel?.usage) : NaN;
 
+  const palmStock = await computePalmStockCard();
+  const bunkStock = await computeStockCard();
+  const palmRemain = palmStock[kpiDateStr]?.closing ?? null;
+  const bunkRemain = bunkStock[kpiDateStr]?.closing ?? null;
+
   let html = '';
   html += `<div class="month-block"><div class="month-title">Boiler no.5 (20ton)</div>
     <div class="kpi-row">
@@ -1361,6 +1366,12 @@ async function renderDailySummary(subArea, records){
     <div class="kpi-row">
       <div class="kpi-card"><div class="kpi-label">Flow Steam</div><div class="kpi-value">${steam4==null?'—':num(steam4)}<span class="kpi-unit">ton</span></div></div>
       <div class="kpi-card"><div class="kpi-label">ปริมาณการใช้เชื้อเพลิง</div><div class="kpi-value">${isNaN(fuel4)?'—':num(fuel4)}<span class="kpi-unit">liter</span></div></div>
+    </div>
+  </div>`;
+  html += `<div class="month-block"><div class="month-title">วัตถุดิบคงเหลือ</div>
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">กะลาปาล์มคงเหลือ</div><div class="kpi-value">${palmRemain==null?'—':num(palmRemain)}<span class="kpi-unit">kg</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">น้ำมันเตาคงเหลือ</div><div class="kpi-value">${bunkRemain==null?'—':num(bunkRemain)}<span class="kpi-unit">liter</span></div></div>
     </div>
   </div>`;
   html += `<div class="summary-toolbar" style="justify-content:flex-end;">
