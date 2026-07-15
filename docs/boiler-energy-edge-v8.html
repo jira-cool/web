@@ -878,7 +878,7 @@ async function renderForm(rec){
       const prev = await getPrevMeter(path, rec.date);
       const prevUsage = await getPrevMeter(`water.${f.k}.usage`, rec.date);
       const curVal = rec.water?.[f.k] || {};
-      html += dualFieldHTML('water', '_root', {k:f.k, label:f.label, unit:f.unit, usageLabel:'ปริมาณการใช้'}, curVal, prev, prevUsage);
+      html += dualFieldHTML('water', '_root', {k:f.k, label:f.label, unit:f.unit, usageLabel:'ปริมาณการใช้'}, curVal, prev, prevUsage, true);
     }
     html += `</div>`;
   } else if(cat.key==='electricity'){
