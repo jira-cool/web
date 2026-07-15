@@ -55,18 +55,19 @@
         <p class="note-line">หมายเหตุ: ใช้มิเตอร์นี้กรอก Feed water ของ Boiler ให้ด้วย: no.2←M5, no.4←M27, no.5←M12</p>
       </div>
       <div class="panel" id="importUtilityPanel">
-        <h2>⛽ นำเข้าเชื้อเพลิง+ชั่วโมงทำงาน Boiler no.2/no.4 (Utility report)</h2>
-        <p class="sub">เลือกไฟล์ Utility report (.xls/.xlsx) — อ่าน 2 sheet: เชื้อเพลิง (Present/Previous/Used) และ ชั่วโมงทำงาน (Before/After/Hour)</p>
+        <h2>⛽ นำเข้าเชื้อเพลิง+ชั่วโมงทำงาน Boiler no.2/no.4/no.5 (Utility report)</h2>
+        <p class="sub">เลือกไฟล์ Utility report (.xls/.xlsx) — อ่านได้สูงสุด 3 sheet: เชื้อเพลิง (Present/Previous/Used), ชั่วโมงทำงาน (Before/After/Hour), และกะลาปาล์ม (Feed Rotary M4.1/M4.2 + ขี้เถ้า ของ Boiler no.5)</p>
         <div class="grid">
           <div class="field"><label>ไฟล์ Excel (.xls/.xlsx)</label><input type="file" id="importUtilityFile" accept=".xls,.xlsx,.xlsm"></div>
           <div class="field"><label>ชื่อ Sheet เชื้อเพลิง</label><input type="text" id="importUtilityFuelSheetName" value="Utility-072026"></div>
           <div class="field"><label>ชื่อ Sheet ชั่วโมงทำงาน</label><input type="text" id="importUtilityHourSheetName" value="hour meter boil-0726"></div>
+          <div class="field"><label>ชื่อ Sheet กะลาปาล์ม (Boiler no.5)</label><input type="text" id="importUtilityPalmSheetName" value=""></div>
         </div>
         <div class="actions" style="justify-content:flex-start; margin-top:10px;">
           <button class="btn btn-primary" id="importUtilityBtn">นำเข้าข้อมูล</button>
         </div>
         <p class="note-line" id="importUtilityLog"></p>
-        <p class="note-line">หมายเหตุ: กรอกเฉพาะ Boiler no.2 และ no.4 (มิเตอร์เชื้อเพลิง+ปริมาณใช้ / มิเตอร์ชั่วโมง+จำนวนชั่วโมง)</p>
+        <p class="note-line">หมายเหตุ: sheet เชื้อเพลิง/ชั่วโมงทำงาน กรอก Boiler no.2, no.4, no.5 (มิเตอร์+ปริมาณใช้ / มิเตอร์ชั่วโมง+จำนวนชั่วโมง) — sheet กะลาปาล์ม (ถ้ากรอก) ใช้เติมเชื้อเพลิง M4.1/M4.2 และขี้เถ้าของ Boiler no.5 ที่ไฟล์ต้นทุนไอน้ำบางเดือนไม่มี</p>
       </div>
     </div>
   </details>
@@ -1542,20 +1543,107 @@ async function exportAccountingExcel(records, psc, sc, overviewRows){
 
 /* ---------------- Excel import ---------------- */
 const IMPORT_MAP = {
-  palmShellTrips:[
-    {supplierWeight:'BV',supplierMoisture:'BW',companyWeight:'CO',companyMoisture:'CP'},
-    {supplierWeight:'BX',supplierMoisture:'BY',companyWeight:'CQ',companyMoisture:'CR'},
-    {supplierWeight:'BZ',supplierMoisture:'CA',companyWeight:'CS',companyMoisture:'CT'},
-    {supplierWeight:'CB',supplierMoisture:'CC',companyWeight:'CU',companyMoisture:'CV'},
-    {supplierWeight:'CD',supplierMoisture:'CE',companyWeight:'CW',companyMoisture:'CX'},
-    {supplierWeight:'CF',supplierMoisture:'CG',companyWeight:'CY',companyMoisture:'CZ'},
-  ],
   palmShellPrice:'AM',
   bunkOilPrice:'X',
-  waterM1:'BI',
   waterPriceFixed:41.17,
-  electricity:{rateA:'BD',rateB:'BE',rateC:'BF'},
 };
+
+// หา column index (0-based) ที่ header (row 1-5) มีข้อความตรงกับ labelSubstring
+// ใช้แทน column letter ตายตัว เพื่อให้ import ยังทำงานได้แม้ layout ของ sheet เปลี่ยนไปทุกเดือน/ปี
+function findColIndex(ws, labelSubstring, colFrom, colTo){
+  const range = XLSX.utils.decode_range(ws['!ref']||'A1');
+  const cFrom = colFrom!=null ? colFrom : range.s.c;
+  const cTo = colTo!=null ? colTo : range.e.c;
+  for(let c=cFrom; c<=cTo; c++){
+    for(let r=1; r<=5; r++){
+      const cell = ws[XLSX.utils.encode_cell({r:r-1,c})];
+      if(cell && cell.v!=null && String(cell.v).includes(labelSubstring)) return c;
+    }
+  }
+  return null;
+}
+function cellTextAt(ws, colIdx){
+  const texts=[];
+  for(let r=1; r<=5; r++){
+    const cell = ws[XLSX.utils.encode_cell({r:r-1,c:colIdx})];
+    if(cell && cell.v!=null) texts.push(String(cell.v));
+  }
+  return texts.join(' ');
+}
+function colLetter(idx){ return idx==null ? null : XLSX.utils.encode_col(idx); }
+
+// วิเคราะห์ header ของ sheet ต้นทุนไอน้ำ (row 1-5) หา column ของแต่ละ field
+// เพราะตำแหน่งคอลัมน์ขยับไปทุกเดือน (0326-0626) ตามจำนวนคอลัมน์ที่เพิ่มขึ้นเรื่อยๆ
+function resolveSteamCostColumns(ws){
+  const R = {};
+
+  const rateAIdx = findColIndex(ws, '4.1839');
+  if(rateAIdx!=null) R.electricity = {rateA:colLetter(rateAIdx), rateB:colLetter(rateAIdx+1), rateC:colLetter(rateAIdx+2)};
+
+  const waterIdx = findColIndex(ws, 'มิเตอร์ M1') ?? findColIndex(ws, 'มิเติอร์ M1');
+  if(waterIdx!=null) R.waterM1 = colLetter(waterIdx);
+
+  const b5Idx = findColIndex(ws, 'Palm shell for Boiler no.5');
+  if(b5Idx!=null){
+    const afterIdx = findColIndex(ws, 'After', b5Idx, b5Idx+8);
+    const m41Idx = findColIndex(ws, 'M4.1', b5Idx, b5Idx+8);
+    if(afterIdx!=null && m41Idx!=null){
+      // โครงสร้างเต็ม (0726 เป็นต้นไป): ชม. Before/After แยก, เชื้อเพลิง M4.1/M4.2 แยก
+      R.boilerNo5 = {
+        hoursMeter: colLetter(afterIdx), hoursUsage: colLetter(afterIdx+1),
+        fuelLeft: colLetter(m41Idx), fuelRight: colLetter(m41Idx+1),
+      };
+    } else {
+      // โครงสร้างเก่า (0326-0626): มีแค่ชม.รวมค่าเดียว และเชื้อเพลิงรวมค่าเดียว (ไม่แยก)
+      const fuelIdx = findColIndex(ws, 'kg./day', b5Idx, b5Idx+8);
+      R.boilerNo5 = {
+        hoursMeter: null, hoursUsage: colLetter(b5Idx),
+        fuelLeft: colLetter(fuelIdx), fuelRight: null,
+      };
+    }
+  }
+
+  const ashIdx = findColIndex(ws, 'ขี้เถ้า');
+  if(ashIdx!=null){
+    const hasSplit = cellTextAt(ws, ashIdx+1).trim()==='2';
+    R.ash = hasSplit
+      ? {r1:colLetter(ashIdx), r2:colLetter(ashIdx+1), r3:colLetter(ashIdx+2)}
+      : {r1:colLetter(ashIdx), r2:null, r3:null};
+  }
+  const wetIdx = findColIndex(ws, 'บ่อwet');
+  if(wetIdx!=null) R.wetScrubber = colLetter(wetIdx);
+
+  const supTrips = resolvePalmTripCols(ws, '%ความชื้นกะลาปาล์มจาก Supplier');
+  const compTrips = resolvePalmTripCols(ws, 'ความชื้นกะลาปาล์มจาก Boiler ทวนสอบ');
+  R.palmShellTrips = supTrips.map((sup,i)=>({
+    supplierWeight: sup.weight, supplierMoisture: sup.moisture,
+    companyWeight: compTrips[i]?.weight ?? null, companyMoisture: compTrips[i]?.moisture ?? null,
+  }));
+
+  return R;
+}
+
+// คืน array 6 ช่อง {weight,moisture} (เป็น column letter หรือ null) ของฝั่งใดฝั่งหนึ่ง (supplier/company)
+// รองรับทั้งรูปแบบใหม่ (6 เที่ยว น้ำหนัก+ความชื้นคู่กัน) และรูปแบบเก่า 0126/0226 (3 เที่ยว + ความชื้นเฉลี่ยรวม)
+function resolvePalmTripCols(ws, anchorLabel){
+  const anchorIdx = findColIndex(ws, anchorLabel);
+  const empty = Array.from({length:6},()=>({weight:null,moisture:null}));
+  if(anchorIdx==null) return empty;
+  const isOldStyle = cellTextAt(ws, anchorIdx).includes('เวลา');
+  if(isOldStyle){
+    // 3 เที่ยว: น้ำหนักอยู่ที่ anchor+1,+3,+5 ความชื้นเฉลี่ยรวมอยู่ anchor+6 (ใช้ค่าเดียวกันเติมทั้ง 3 เที่ยว)
+    const moistureCol = colLetter(anchorIdx+6);
+    return [
+      {weight:colLetter(anchorIdx+1), moisture:moistureCol},
+      {weight:colLetter(anchorIdx+3), moisture:moistureCol},
+      {weight:colLetter(anchorIdx+5), moisture:moistureCol},
+      {weight:null, moisture:null},
+      {weight:null, moisture:null},
+      {weight:null, moisture:null},
+    ];
+  }
+  return Array.from({length:6},(_,i)=>({weight:colLetter(anchorIdx+2*i), moisture:colLetter(anchorIdx+2*i+1)}));
+}
 
 function importGetCell(ws, col, row){
   const c = ws[col+row];
@@ -1601,6 +1689,9 @@ async function handleExcelImport(){
     return;
   }
 
+  const R = resolveSteamCostColumns(ws);
+  const setCol = (obj,key,c,row)=>{ if(c!=null) importSetIf(obj,key,importGetCell(ws,c,row)); };
+
   let imported=0;
   for(let row=5; row<=60; row++){
     const dCell = ws['A'+row];
@@ -1608,14 +1699,18 @@ async function handleExcelImport(){
     const dateStr = importFmtDate(dCell.v);
     const rec = await loadRecord(dateStr);
 
-    importSetIf(rec.boiler.no5.fuel,'left', importGetCell(ws,'AG',row));
-    importSetIf(rec.boiler.no5.fuel,'right', importGetCell(ws,'AH',row));
-    importSetIf(rec.boiler.no5.ash,'r1', importGetCell(ws,'CI',row));
-    importSetIf(rec.boiler.no5.ash,'r2', importGetCell(ws,'CJ',row));
-    importSetIf(rec.boiler.no5.ash,'r3', importGetCell(ws,'CK',row));
-    importSetIf(rec.boiler.no5.ash,'wetScrubber', importGetCell(ws,'CN',row));
-    importSetIf(rec.boiler.no5.hours,'meter', importGetCell(ws,'AE',row));
-    importSetIf(rec.boiler.no5.hours,'usage', importGetCell(ws,'AF',row));
+    if(R.boilerNo5){
+      setCol(rec.boiler.no5.fuel,'left', R.boilerNo5.fuelLeft, row);
+      setCol(rec.boiler.no5.fuel,'right', R.boilerNo5.fuelRight, row);
+      setCol(rec.boiler.no5.hours,'meter', R.boilerNo5.hoursMeter, row);
+      setCol(rec.boiler.no5.hours,'usage', R.boilerNo5.hoursUsage, row);
+    }
+    if(R.ash){
+      setCol(rec.boiler.no5.ash,'r1', R.ash.r1, row);
+      setCol(rec.boiler.no5.ash,'r2', R.ash.r2, row);
+      setCol(rec.boiler.no5.ash,'r3', R.ash.r3, row);
+    }
+    setCol(rec.boiler.no5.ash,'wetScrubber', R.wetScrubber, row);
 
     importSetIf(rec.boiler.no2.fuel,'usage', importGetCell(ws,'N',row));
     importSetIf(rec.boiler.no2.hours,'usage', importGetCell(ws,'M',row));
@@ -1626,23 +1721,25 @@ async function handleExcelImport(){
     if(!rec.palmShell.trips || rec.palmShell.trips.length<6){
       rec.palmShell.trips = Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''}));
     }
-    IMPORT_MAP.palmShellTrips.forEach((cols,i)=>{
-      importSetIf(rec.palmShell.trips[i],'supplierWeight', importGetCell(ws,cols.supplierWeight,row));
-      importSetIf(rec.palmShell.trips[i],'supplierMoisture', importGetCell(ws,cols.supplierMoisture,row));
-      importSetIf(rec.palmShell.trips[i],'companyWeight', importGetCell(ws,cols.companyWeight,row));
-      importSetIf(rec.palmShell.trips[i],'companyMoisture', importGetCell(ws,cols.companyMoisture,row));
+    R.palmShellTrips.forEach((cols,i)=>{
+      setCol(rec.palmShell.trips[i],'supplierWeight', cols.supplierWeight, row);
+      setCol(rec.palmShell.trips[i],'supplierMoisture', cols.supplierMoisture, row);
+      setCol(rec.palmShell.trips[i],'companyWeight', cols.companyWeight, row);
+      setCol(rec.palmShell.trips[i],'companyMoisture', cols.companyMoisture, row);
     });
     importSetIf(rec.palmShell,'price', importGetCell(ws,IMPORT_MAP.palmShellPrice,row));
 
     importSetIf(rec.bunkOil,'price', importGetCell(ws,IMPORT_MAP.bunkOilPrice,row));
 
     if(!rec.water.m1) rec.water.m1 = {meter:'',usage:''};
-    importSetIf(rec.water.m1,'meter', importGetCell(ws,IMPORT_MAP.waterM1,row));
+    setCol(rec.water.m1,'meter', R.waterM1, row);
     if(!rec.water.price) rec.water.price = String(IMPORT_MAP.waterPriceFixed);
 
-    importSetIf(rec.electricity,'rateA', importGetCell(ws,IMPORT_MAP.electricity.rateA,row));
-    importSetIf(rec.electricity,'rateB', importGetCell(ws,IMPORT_MAP.electricity.rateB,row));
-    importSetIf(rec.electricity,'rateC', importGetCell(ws,IMPORT_MAP.electricity.rateC,row));
+    if(R.electricity){
+      setCol(rec.electricity,'rateA', R.electricity.rateA, row);
+      setCol(rec.electricity,'rateB', R.electricity.rateB, row);
+      setCol(rec.electricity,'rateC', R.electricity.rateC, row);
+    }
     const av=parseFloat(rec.electricity.rateA)||0, bv=parseFloat(rec.electricity.rateB)||0, cv=parseFloat(rec.electricity.rateC)||0;
     if(av||bv||cv) rec.electricity.total = String(av+bv+cv);
 
@@ -1757,21 +1854,34 @@ const UTILITY_FUEL_MAP = {
   no2:{meterCol:'H', usageCol:'J'},
   no4:{meterCol:'K', usageCol:'M'},
 };
-const UTILITY_HOUR_MAP = {
-  no2:{meterCol:'C', usageCol:'D'},
-  no4:{meterCol:'F', usageCol:'G'},
+const UTILITY_HOUR_LABELS = {
+  no2:'Hour meter boiler No.2',
+  no4:'Hour meter boiler No.4',
+  no5:'Hour meter boiler No.5',
 };
+// หา column ของ Before/After/Hour แต่ละ Boiler แบบ dynamic เพราะ sheet ชั่วโมงทำงาน
+// สลับลำดับ No.4/No.5 กันไปคนละเดือน (0326/0426 ลำดับ No.2,No.5,No.4 — 0526 เป็นต้นไป No.2,No.4,No.5)
+function resolveUtilityHourColumns(ws){
+  const out = {};
+  for(const [boilerKey, label] of Object.entries(UTILITY_HOUR_LABELS)){
+    const idx = findColIndex(ws, label);
+    if(idx!=null) out[boilerKey] = {meterCol:colLetter(idx+1), usageCol:colLetter(idx+2)};
+  }
+  return out;
+}
 
 async function handleUtilityExcelImport(){
   const fileInput = document.getElementById('importUtilityFile');
   const fuelSheetInput = document.getElementById('importUtilityFuelSheetName');
   const hourSheetInput = document.getElementById('importUtilityHourSheetName');
+  const palmSheetInput = document.getElementById('importUtilityPalmSheetName');
   const logEl = document.getElementById('importUtilityLog');
   const file = fileInput.files[0];
   if(!file){ logEl.textContent = 'กรุณาเลือกไฟล์ Excel ก่อน'; return; }
   const fuelSheetName = (fuelSheetInput.value||'').trim();
   const hourSheetName = (hourSheetInput.value||'').trim();
-  if(!fuelSheetName && !hourSheetName){ logEl.textContent = 'กรุณาระบุชื่อ sheet อย่างน้อย 1 อัน'; return; }
+  const palmSheetName = (palmSheetInput.value||'').trim();
+  if(!fuelSheetName && !hourSheetName && !palmSheetName){ logEl.textContent = 'กรุณาระบุชื่อ sheet อย่างน้อย 1 อัน'; return; }
   logEl.textContent = 'กำลังอ่านไฟล์...';
 
   let wb;
@@ -1783,7 +1893,7 @@ async function handleUtilityExcelImport(){
     return;
   }
 
-  let fuelDays=0, hourDays=0;
+  let fuelDays=0, hourDays=0, palmDays=0;
   const missing=[];
 
   if(fuelSheetName){
@@ -1815,13 +1925,14 @@ async function handleUtilityExcelImport(){
     const ws = wb.Sheets[hourSheetName];
     if(!ws){ missing.push(`ไม่พบ sheet ชั่วโมงทำงาน "${hourSheetName}"`); }
     else{
+      const hourMap = resolveUtilityHourColumns(ws);
       for(let row=4; row<=60; row++){
         const dCell = ws['A'+row];
         if(!dCell || !(dCell.v instanceof Date)) continue;
         const dateStr = importFmtDate(dCell.v);
         const rec = await loadRecord(dateStr);
         let touched=false;
-        for(const [boilerKey, cfg] of Object.entries(UTILITY_HOUR_MAP)){
+        for(const [boilerKey, cfg] of Object.entries(hourMap)){
           const meterVal = importGetCell(ws, cfg.meterCol, row);
           const usageVal = importGetCell(ws, cfg.usageCol, row);
           if(meterVal!==''){ rec.boiler[boilerKey].hours.meter = meterVal; touched=true; }
@@ -1832,12 +1943,43 @@ async function handleUtilityExcelImport(){
     }
   }
 
+  if(palmSheetName){
+    const ws = wb.Sheets[palmSheetName];
+    if(!ws){ missing.push(`ไม่พบ sheet กะลาปาล์ม "${palmSheetName}"`); }
+    else{
+      // เติมข้อมูล Boiler no.5 (เชื้อเพลิง M4.1/M4.2 + ขี้เถ้า) ที่ไฟล์ต้นทุนไอน้ำบางเดือนไม่มี
+      const m41Idx = findColIndex(ws, 'Feed Rotary M4.1');
+      const m42Idx = findColIndex(ws, 'Feed Rotary M4.2');
+      const ashAnchorIdx = findColIndex(ws, 'Ash');
+      // sheet บางเดือนมีขี้เถ้าแค่ 2 ช่อง (1.0/2.0) — ช่องถัดไปเป็น "Amount Total" ไม่ใช่ค่าที่ 3
+      const ashHasR3 = ashAnchorIdx!=null && cellTextAt(ws, ashAnchorIdx+3).trim()==='3.0';
+      const ashRemovedIdx = findColIndex(ws, 'ขี้เถ้านำออก');
+      for(let row=4; row<=60; row++){
+        const dCell = ws['A'+row];
+        if(!dCell || !(dCell.v instanceof Date)) continue;
+        const dateStr = importFmtDate(dCell.v);
+        const rec = await loadRecord(dateStr);
+        let touched=false;
+        if(m41Idx!=null){ const v=importGetCell(ws,colLetter(m41Idx),row); if(v!==''){ rec.boiler.no5.fuel.left=v; touched=true; } }
+        if(m42Idx!=null){ const v=importGetCell(ws,colLetter(m42Idx),row); if(v!==''){ rec.boiler.no5.fuel.right=v; touched=true; } }
+        if(ashAnchorIdx!=null){
+          const v1=importGetCell(ws,colLetter(ashAnchorIdx+1),row); if(v1!==''){ rec.boiler.no5.ash.r1=v1; touched=true; }
+          const v2=importGetCell(ws,colLetter(ashAnchorIdx+2),row); if(v2!==''){ rec.boiler.no5.ash.r2=v2; touched=true; }
+          if(ashHasR3){ const v3=importGetCell(ws,colLetter(ashAnchorIdx+3),row); if(v3!==''){ rec.boiler.no5.ash.r3=v3; touched=true; } }
+        }
+        if(ashRemovedIdx!=null){ const v=importGetCell(ws,colLetter(ashRemovedIdx),row); if(v!==''){ rec.palmShell.ashRemoved=v; touched=true; } }
+        if(touched){ await saveRecord(rec); palmDays++; }
+      }
+    }
+  }
+
   allDatesCache = null;
   stockCardCache = null;
   palmStockCardCache = null;
   const parts=[];
   if(fuelSheetName && !missing.some(m=>m.includes('เชื้อเพลิง'))) parts.push(`เชื้อเพลิง ${fuelDays} วัน`);
   if(hourSheetName && !missing.some(m=>m.includes('ชั่วโมง'))) parts.push(`ชั่วโมงทำงาน ${hourDays} วัน`);
+  if(palmSheetName && !missing.some(m=>m.includes('กะลาปาล์ม'))) parts.push(`กะลาปาล์ม Boiler no.5 ${palmDays} วัน`);
   let msg = parts.length ? `นำเข้าสำเร็จ: ${parts.join(', ')}` : '';
   if(missing.length) msg += (msg?' — ':'') + missing.join(', ') + ` (sheet ที่มีในไฟล์: ${wb.SheetNames.join(', ')})`;
   logEl.textContent = msg || 'ไม่พบข้อมูลที่นำเข้าได้';
