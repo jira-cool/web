@@ -1785,6 +1785,65 @@ function acctTitledSheet(titleTh, titleEn, header, rows, colWidths){
   return ws;
 }
 
+// ชื่อหมวดของแต่ละมิเตอร์ ตรงกับไฟล์ต้นฉบับ "การใช้น้ำประจำวัน2026"
+const WATER_METER_LABELS = {
+  m1:'กนอ.', m2:'Soft.Cooling Tower', m3:'Soft.Cooling Tower', m4:'RO.', m5:'Boiler.no2',
+  m6:'Soft. UV, Pasteurize', m7:'Soft. UV, Pasteurize', m8:'น้ำล้าง Phase 1', m9:'น้ำล้าง โรงอาหาร',
+  m10:'ห้องน้ำ Office', m11:'Pasteurize,Cooling', m12:'Boiler No.5', m13:'high tank Phase 6 No.1',
+  m14:'UV. Phase 1', m16:'ป้อมยามหน้า', m17:'softenerboiler', m18:'น้ำห้องน้ำ',
+  m21:'น้ำ Recycle ปั๊ม RO', m26:'น้ำHigh tank phase 6 No.2', m27:'Boiler No.4',
+  m28:'UV. Phase 6', m29:'Defrost T/F', m31:'Defrost T/F 7',
+};
+
+// ตารางมิเตอร์น้ำครบทุกตัว หน้าตาแบบไฟล์ต้นฉบับ (ชื่อหมวด + Meter/m3 ต่อมิเตอร์)
+// ข้ามมิเตอร์ที่ทั้งเดือนไม่มีข้อมูลเลย เพื่อไม่ให้ตารางถูกบีบเหมือนต้นฉบับ
+function buildWaterMetersSheet(records, monthTag){
+  const waterFields = CATEGORIES.find(c=>c.key==='water').fields.filter(f=>f.k!=='price');
+  const usedFields = waterFields.filter(f=>records.some(r=>{
+    const w = r.water?.[f.k];
+    return w && ((w.meter!=null && w.meter!=='') || (w.usage!=null && w.usage!==''));
+  }));
+  const ncol = 1 + usedFields.length*2;
+  const catRow = ['', ...usedFields.flatMap(f=>[WATER_METER_LABELS[f.k]||f.k, ''])];
+  const subRow = ['วันที่', ...usedFields.flatMap(f=>[`Meter ${f.k.toUpperCase()}`, 'm3'])];
+  const dataRows = records.map(r=>[
+    r.date,
+    ...usedFields.flatMap(f=>{
+      const w = r.water?.[f.k] || {};
+      return [w.meter ?? '', w.usage ?? ''];
+    }),
+  ]);
+  const aoa = [
+    ['Water Usage Daily Report', ...Array(ncol-1).fill('')],
+    [`Engineering Department / Power Plant Section / Boiler Unit — ${monthTag}`, ...Array(ncol-1).fill('')],
+    Array(ncol).fill(''),
+    catRow,
+    subRow,
+    ...dataRows,
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!merges'] = [
+    {s:{r:0,c:0}, e:{r:0,c:ncol-1}},
+    {s:{r:1,c:0}, e:{r:1,c:ncol-1}},
+  ];
+  usedFields.forEach((f,i)=>{
+    const c0 = 1+i*2;
+    ws['!merges'].push({s:{r:3,c:c0}, e:{r:3,c:c0+1}});
+  });
+  ws['!cols'] = [{wch:12}, ...usedFields.flatMap(()=>[{wch:12},{wch:9}])];
+  const dataStartRow = 5;
+  for(let i=0;i<dataRows.length;i++){
+    const cellRef = XLSX.utils.encode_cell({r:dataStartRow+i, c:0});
+    const cell = ws[cellRef];
+    if(cell && typeof cell.v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(cell.v)){
+      cell.t = 'd';
+      cell.v = new Date(cell.v + 'T00:00:00');
+      cell.z = 'dd/mm/yyyy';
+    }
+  }
+  return ws;
+}
+
 async function exportAccountingExcel(records, psc, sc, overviewRows){
   const wb = XLSX.utils.book_new();
   const monthTag = records[0]?.date?.slice(0,7) || '';
@@ -1815,19 +1874,7 @@ async function exportAccountingExcel(records, psc, sc, overviewRows){
     [12,11,10,10,10,10,10,10,11,11,10,9,10,9,14]
   ), 'Palm Shell Stock Card');
 
-  const waterHeader = ['วันที่','มิเตอร์ปัจจุบัน (m³)','ปริมาณใช้ (m³)','ราคา/หน่วย','มูลค่า (บาท)'];
-  const waterRows=[];
-  for(const r of records){
-    const meter = r.water?.m1?.meter ?? '';
-    const usage = parseFloat(r.water?.m1?.usage);
-    const price = (r.water?.price && r.water.price!=='') ? parseFloat(r.water.price) : await getSticky('water.price', r.date);
-    const cost = (!isNaN(usage) && price!=null) ? usage*price : '';
-    waterRows.push([r.date, meter, isNaN(usage)?'':usage, price??'', cost]);
-  }
-  XLSX.utils.book_append_sheet(wb, acctTitledSheet(
-    'Waters Amount Used Daily Report', `Engineering Department / EEC Section / Boiler Unit — ${monthTag}`, waterHeader, waterRows,
-    [12,16,12,10,12]
-  ), 'Water');
+  XLSX.utils.book_append_sheet(wb, buildWaterMetersSheet(records, monthTag), 'Water');
 
   const bunkHeader = ['วันที่','คงเหลือเมื่อวาน','รับเข้า','ปริมาณการใช้น้ำมันเตา','คงเหลือ','Tank1','Tank2'];
   const bunkRows = records.map(r=>{
