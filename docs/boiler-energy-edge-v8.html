@@ -655,7 +655,7 @@ function fieldHTML(catKey, groupPath, k, label, unit, value, stickyMode){
   </div>`;
 }
 
-function dualFieldHTML(catKey, groupPath, f, curVal, prev, prevUsage){
+function dualFieldHTML(catKey, groupPath, f, curVal, prev, prevUsage, usageReadOnly){
   const meterLabel = f.meterLabel || 'มิเตอร์ปัจจุบัน';
   const usageLabel = f.usageLabel || 'ปริมาณการใช้';
   const prevLabel = prev==null ? 'ไม่มีข้อมูลก่อนหน้า' : prev;
@@ -665,7 +665,7 @@ function dualFieldHTML(catKey, groupPath, f, curVal, prev, prevUsage){
       <div class="field"><label>${meterLabel}</label>
         <input type="text" inputmode="decimal" data-cat="${catKey}" data-path="${groupPath}" data-key="${f.k}" data-role="meter" value="${curVal.meter ?? ''}"></div>
       <div class="field"><label>${usageLabel}</label>
-        <input type="text" inputmode="decimal" data-cat="${catKey}" data-path="${groupPath}" data-key="${f.k}" data-role="usage" value="${curVal.usage ?? ''}"></div>
+        <input type="text" inputmode="decimal" data-cat="${catKey}" data-path="${groupPath}" data-key="${f.k}" data-role="usage" value="${curVal.usage ?? ''}" ${usageReadOnly?'readonly style="background:#f3f4f6;"':''}></div>
     </div>
   </div>`;
 }
@@ -754,7 +754,7 @@ async function renderForm(rec){
           const prev = await getPrevMeter(path, rec.date);
           const prevUsage = f.k==='fw' ? await getPrevMeter(`boiler.${b.key}.${f.k}.usage`, rec.date) : null;
           const curVal = rec.boiler?.[b.key]?.[f.k] || {};
-          html += dualFieldHTML('boiler', b.key, f, curVal, prev, prevUsage);
+          html += dualFieldHTML('boiler', b.key, f, curVal, prev, prevUsage, f.k==='fw');
         }
         html += `</div>`;
       }
@@ -764,7 +764,7 @@ async function renderForm(rec){
           const prev = await getPrevMeter(path, rec.date);
           const prevUsage = f.k==='fw' ? await getPrevMeter(`boiler.${b.key}.${f.k}.usage`, rec.date) : null;
           const curVal = rec.boiler?.[b.key]?.[f.k] || {};
-          html += dualFieldHTML('boiler', b.key, f, curVal, prev, prevUsage);
+          html += dualFieldHTML('boiler', b.key, f, curVal, prev, prevUsage, f.k==='fw');
         } else if(f.mode==='ash4'){
           const cur = rec.boiler?.[b.key]?.[f.k] || {};
           html += ash4HTML('boiler', b.key, f, cur);
