@@ -1367,7 +1367,7 @@ async function renderDailySummary(subArea, records){
       <div class="kpi-card"><div class="kpi-label">ปริมาณการใช้เชื้อเพลิง</div><div class="kpi-value">${isNaN(fuel4)?'—':num(fuel4)}<span class="kpi-unit">liter</span></div></div>
     </div>
   </div>`;
-  html += `<div class="month-block"><div class="month-title">วัตถุดิบคงเหลือ</div>
+  html += `<div class="month-block"><div class="month-title">Stock</div>
     <div class="kpi-row">
       <div class="kpi-card"><div class="kpi-label">กะลาปาล์มคงเหลือ</div><div class="kpi-value">${palmRemain==null?'—':num(palmRemain)}<span class="kpi-unit">kg</span></div></div>
       <div class="kpi-card"><div class="kpi-label">น้ำมันเตาคงเหลือ</div><div class="kpi-value">${bunkRemain==null?'—':num(bunkRemain)}<span class="kpi-unit">liter</span></div></div>
