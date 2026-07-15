@@ -458,6 +458,11 @@ function sumMeterUsage(records, meterKey){
 function renderTabs(rec){
   const bar = document.getElementById('tabBar');
   bar.innerHTML = '';
+  const sumBtn = document.createElement('button');
+  sumBtn.className = 'tab-btn summary'+(activeTab==='__summary__' ? ' active':'');
+  sumBtn.innerHTML = '<span class="dot" style="background:var(--steel)"></span><span>📊 Report</span>';
+  sumBtn.onclick = ()=>{ activeTab='__summary__'; showSummary(); };
+  bar.appendChild(sumBtn);
   CATEGORIES.forEach(c=>{
     const btn = document.createElement('button');
     const filled = categoryHasData(rec, c.key);
@@ -466,11 +471,6 @@ function renderTabs(rec){
     btn.onclick = ()=>{ activeTab = c.key; document.getElementById('summaryArea').style.display='none'; document.getElementById('formArea').style.display='block'; refresh(); };
     bar.appendChild(btn);
   });
-  const sumBtn = document.createElement('button');
-  sumBtn.className = 'tab-btn summary'+(activeTab==='__summary__' ? ' active':'');
-  sumBtn.innerHTML = '<span class="dot" style="background:var(--steel)"></span><span>📊 สรุป / ส่งออก Excel</span>';
-  sumBtn.onclick = ()=>{ activeTab='__summary__'; showSummary(); };
-  bar.appendChild(sumBtn);
 }
 
 /* ---------------- field renderers ---------------- */
