@@ -565,15 +565,19 @@ function getByPath(rec, path){
   return path.split('.').reduce((o,k)=> (o!=null ? o[k] : undefined), rec);
 }
 
-async function getPrevMeter(path, beforeDate){
+async function getPrevMeterDated(path, beforeDate){
   const dates = await listAllDates();
   const priorDates = dates.filter(d=>d<beforeDate).sort().reverse();
   for(const d of priorDates){
     const r = await loadRecord(d);
     const v = getByPath(r, path);
-    if(v!=='' && v!=null && !isNaN(parseFloat(v))) return parseFloat(v);
+    if(v!=='' && v!=null && !isNaN(parseFloat(v))) return {date:d, value:parseFloat(v)};
   }
   return null;
+}
+async function getPrevMeter(path, beforeDate){
+  const found = await getPrevMeterDated(path, beforeDate);
+  return found ? found.value : null;
 }
 
 async function getSticky(path, uptoDateInclusive){
@@ -783,7 +787,7 @@ async function renderForm(rec){
         for(const f of pairFields){
           const path = `boiler.${b.key}.${f.k}.meter`;
           const prev = await getPrevMeter(path, rec.date);
-          const prevUsage = f.k==='fw' ? await getPrevMeter(`boiler.${b.key}.${f.k}.usage`, rec.date) : null;
+          const prevUsage = f.k==='fw' ? await getPrevMeter(`boiler.${b.key}.${f.k}.usage`, shiftDateStr(rec.date,-1)) : null;
           const curVal = rec.boiler?.[b.key]?.[f.k] || {};
           html += dualFieldHTML('boiler', b.key, f, curVal, prev, prevUsage, f.k==='fw');
         }
@@ -793,7 +797,7 @@ async function renderForm(rec){
         if(f.mode==='dual'){
           const path = `boiler.${b.key}.${f.k}.meter`;
           const prev = await getPrevMeter(path, rec.date);
-          const prevUsage = f.k==='fw' ? await getPrevMeter(`boiler.${b.key}.${f.k}.usage`, rec.date) : null;
+          const prevUsage = f.k==='fw' ? await getPrevMeter(`boiler.${b.key}.${f.k}.usage`, shiftDateStr(rec.date,-1)) : null;
           const curVal = rec.boiler?.[b.key]?.[f.k] || {};
           html += dualFieldHTML('boiler', b.key, f, curVal, prev, prevUsage, f.k==='fw');
         } else if(f.mode==='ash4'){
@@ -907,7 +911,7 @@ async function renderForm(rec){
       if(f.k==='price') continue;
       const path = `water.${f.k}.meter`;
       const prev = await getPrevMeter(path, rec.date);
-      const prevUsage = await getPrevMeter(`water.${f.k}.usage`, rec.date);
+      const prevUsage = await getPrevMeter(`water.${f.k}.usage`, shiftDateStr(rec.date,-1));
       const curVal = rec.water?.[f.k] || {};
       html += dualFieldHTML('water', '_root', {k:f.k, label:f.label, unit:f.unit, usageLabel:'ปริมาณการใช้'}, curVal, prev, prevUsage, true);
     }
@@ -1027,9 +1031,26 @@ async function renderForm(rec){
 
 async function onSave(){
   const rec = await loadRecord(currentDate);
+  const prevDateStr = shiftDateStr(currentDate, -1);
+  let prevRec = null;
   const inputs = document.querySelectorAll('#formArea input[data-cat]');
-  inputs.forEach(inp=>{
+  for(const inp of inputs){
     const {cat, path, key, role} = inp.dataset;
+    if(role==='usage' && inp.closest('.field-pair[data-prev]')){
+      // มิเตอร์ที่จดวันนี้ใช้คำนวณ "ปริมาณการใช้ของเมื่อวาน" (จดตอน 05:00 วันนี้ = ปิดรอบของเมื่อวาน) จึงบันทึกผลลง record ของวันก่อนหน้าแทนวันนี้
+      if(inp.value===''){ continue; }
+      if(!prevRec) prevRec = await loadRecord(prevDateStr);
+      if(cat==='boiler'){
+        if(!prevRec.boiler[path]) prevRec.boiler[path]={};
+        if(!prevRec.boiler[path][key]) prevRec.boiler[path][key]={};
+        prevRec.boiler[path][key].usage = inp.value;
+      } else {
+        if(!prevRec[cat]) prevRec[cat]={};
+        if(!prevRec[cat][key] || typeof prevRec[cat][key] !== 'object') prevRec[cat][key] = {};
+        prevRec[cat][key].usage = inp.value;
+      }
+      continue;
+    }
     if(cat==='palmShell' && path==='trips'){
       const [idx, field] = key.split('_');
       if(!rec.palmShell) rec.palmShell = {trips:Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''})), price:'', ashRemoved:'', openingOverride:''};
@@ -1055,8 +1076,9 @@ async function onSave(){
       if(!rec[cat]) rec[cat]={};
       rec[cat][key] = inp.value;
     }
-  });
+  }
   await saveRecord(rec);
+  if(prevRec) await saveRecord(prevRec);
   flashStatus('บันทึกแล้ว ✓');
   refresh();
 }
@@ -2000,16 +2022,21 @@ async function handleWaterExcelImport(){
       if(isNaN(numv)) continue;
       if(!rec.water[waterKey]) rec.water[waterKey] = {meter:'',usage:''};
       rec.water[waterKey].meter = val;
-      let prev = lastMeter[waterKey];
-      if(prev==null){
-        const stored = await getPrevMeter(`water.${waterKey}.meter`, dateStr);
-        if(stored!=null) prev = stored;
+      let prevEntry = lastMeter[waterKey];
+      if(prevEntry==null){
+        prevEntry = await getPrevMeterDated(`water.${waterKey}.meter`, dateStr);
       }
-      if(prev!=null){
-        const usage = numv-prev;
-        if(usage>=0) rec.water[waterKey].usage = String(Math.round(usage*1000)/1000);
+      if(prevEntry!=null){
+        // มิเตอร์วันนี้ - มิเตอร์ครั้งก่อน = ปริมาณการใช้ของ "วันครั้งก่อน" (ปิดรอบตอนจดมิเตอร์วันนี้) จึงบันทึกลง record ของ prevEntry.date
+        const usage = numv-prevEntry.value;
+        if(usage>=0){
+          const prevRec = await loadRecord(prevEntry.date);
+          if(!prevRec.water[waterKey]) prevRec.water[waterKey] = {meter:'',usage:''};
+          prevRec.water[waterKey].usage = String(Math.round(usage*1000)/1000);
+          await saveRecord(prevRec);
+        }
       }
-      lastMeter[waterKey]=numv;
+      lastMeter[waterKey]={date:dateStr, value:numv};
       touched = true;
     }
     for(const [boilerKey, cfg] of Object.entries(BOILER_FW_METER_MAP)){
@@ -2018,16 +2045,19 @@ async function handleWaterExcelImport(){
       const numv = parseFloat(val);
       if(isNaN(numv)) continue;
       rec.boiler[boilerKey].fw.meter = val;
-      let prev = lastMeter['fw_'+boilerKey];
-      if(prev==null){
-        const stored = await getPrevMeter(`boiler.${boilerKey}.fw.meter`, dateStr);
-        if(stored!=null) prev = stored;
+      let prevEntry = lastMeter['fw_'+boilerKey];
+      if(prevEntry==null){
+        prevEntry = await getPrevMeterDated(`boiler.${boilerKey}.fw.meter`, dateStr);
       }
-      if(prev!=null){
-        const usage = numv - prev;
-        if(usage>=0) rec.boiler[boilerKey].fw.usage = String(Math.round(usage*1000)/1000);
+      if(prevEntry!=null){
+        const usage = numv - prevEntry.value;
+        if(usage>=0){
+          const prevRec = await loadRecord(prevEntry.date);
+          prevRec.boiler[boilerKey].fw.usage = String(Math.round(usage*1000)/1000);
+          await saveRecord(prevRec);
+        }
       }
-      lastMeter['fw_'+boilerKey] = numv;
+      lastMeter['fw_'+boilerKey] = {date:dateStr, value:numv};
       touched = true;
     }
     if(touched){ await saveRecord(rec); imported++; }
