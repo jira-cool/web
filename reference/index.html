@@ -269,7 +269,7 @@ function emptyRecord(date){
       no4:{ fw:{meter:'',usage:''}, fuel:{meter:'',usage:''}, hours:{meter:'',usage:''}, blowdown:{valveSec:'',timesPerDay:''} },
     },
     palmShell:{ trips: Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''})), price:'', ashRemoved:'', openingOverride:'' },
-    bunkOil:{ received:'', price:'', openingOverride:'', tank1Override:'', tank2Override:'' },
+    bunkOil:{ received:'', price:'', openingOverride:'', totalOverride:'' },
     lpg:{},
     water:Object.assign(Object.fromEntries(WATER_METER_KEYS.map(k=>[k,{meter:'',usage:''}])), {price:''}),
     electricity:{ rateA:'', rateB:'', rateC:'', total:'', ft:'', kva:'' }
@@ -320,10 +320,9 @@ async function computeStockCard(){
     const received = parseFloat(rec.bunkOil?.received) || 0;
     let closing = opening + received - actualUse;
     let tank1 = closing/2, tank2 = closing/2;
-    const ovT1 = parseFloat(rec.bunkOil?.tank1Override);
-    const ovT2 = parseFloat(rec.bunkOil?.tank2Override);
-    if(!isNaN(ovT1) && !isNaN(ovT2)){
-      tank1 = ovT1; tank2 = ovT2; closing = ovT1 + ovT2;
+    const ovTotal = parseFloat(rec.bunkOil?.totalOverride);
+    if(!isNaN(ovTotal)){
+      closing = ovTotal; tank1 = ovTotal/2; tank2 = ovTotal/2;
     }
     map[d] = {opening, received, fuelUsed, actualUse, closing, tank1, tank2, hasData};
     opening = closing;
@@ -1826,10 +1825,8 @@ async function handleUtilityExcelImport(){
         }
         const chargeVal = importGetCell(ws, 'G', row);
         if(chargeVal!==''){ rec.bunkOil.received = chargeVal; touched=true; }
-        const tank1Val = importGetCell(ws, 'P', row);
-        const tank2Val = importGetCell(ws, 'Q', row);
-        if(tank1Val!==''){ rec.bunkOil.tank1Override = tank1Val; touched=true; }
-        if(tank2Val!==''){ rec.bunkOil.tank2Override = tank2Val; touched=true; }
+        const totalVal = importGetCell(ws, 'R', row);
+        if(totalVal!==''){ rec.bunkOil.totalOverride = totalVal; touched=true; }
         if(touched){ await saveRecord(rec); fuelDays++; }
       }
     }
