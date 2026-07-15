@@ -1758,6 +1758,22 @@ async function renderAccountingView(subArea, allRecords){
   document.getElementById('exportAcctBtn').onclick = ()=>exportAccountingExcel(records, psc, sc, overviewRows);
 }
 
+// คำนวณปริมาณการใช้จากผลต่างมิเตอร์ ถ้า usage ที่เก็บไว้ในระบบว่าง (มิเตอร์วันนี้ - มิเตอร์วันก่อนหน้า)
+// records ต้องเรียงตามวันที่จากน้อยไปมาก, i คือ index ของแถวที่กำลังคำนวณใน records นั้น
+async function computeWaterUsage(f, records, i){
+  const r = records[i];
+  const w = r.water?.[f.k] || {};
+  if(w.usage!=null && w.usage!=='') return parseFloat(w.usage);
+  const meterNow = parseFloat(w.meter);
+  if(isNaN(meterNow)) return null;
+  let meterPrev = i>0 ? parseFloat(records[i-1].water?.[f.k]?.meter) : NaN;
+  if(isNaN(meterPrev)){
+    meterPrev = await getPrevMeter(`water.${f.k}.meter`, shiftDateStr(r.date,-1));
+  }
+  if(meterPrev==null || isNaN(meterPrev)) return null;
+  return meterNow - meterPrev;
+}
+
 async function renderWaterUsageView(subArea, allRecords){
   const months = Array.from(new Set(allRecords.map(r=>r.date.slice(0,7)))).sort();
   if(!months.includes(summaryWaterMonth)) summaryWaterMonth = months[months.length-1];
@@ -1777,11 +1793,13 @@ async function renderWaterUsageView(subArea, allRecords){
       <tr><th rowspan="2">วันที่</th>${usedFields.map(f=>`<th colspan="2">${WATER_METER_LABELS[f.k]||f.k}</th>`).join('')}</tr>
       <tr>${usedFields.map(f=>`<th>Meter ${f.k.toUpperCase()}</th><th>ปริมาณใช้ (m³)</th>`).join('')}</tr>
       </thead><tbody>`;
-    for(const r of records){
+    for(let i=0; i<records.length; i++){
+      const r = records[i];
       html += `<tr><td class="dcol">${r.date}</td>`;
       for(const f of usedFields){
         const w = r.water?.[f.k] || {};
-        html += `<td>${w.meter ?? '—'}</td><td>${num(parseFloat(w.usage))}</td>`;
+        const usage = await computeWaterUsage(f, records, i);
+        html += `<td>${w.meter ?? '—'}</td><td>${num(usage)}</td>`;
       }
       html += `</tr>`;
     }
@@ -1962,21 +1980,23 @@ async function buildWaterMetersWorkbookColored(records, monthTag){
     ws.getCell(5, c0+1).value = 'm3';
   });
 
-  records.forEach((r,i)=>{
+  for(let i=0; i<records.length; i++){
+    const r = records[i];
     const row = 6+i;
     // ใช้ Date.UTC ตรงๆ กันปัญหาเดียวกับ timezone ในไทย (UTC+7) ที่ทำให้เที่ยงคืนตามเวลาท้องถิ่นเพี้ยนไปเป็นวันก่อนหน้าตอนแปลงเป็น UTC
     const [yy,mm,dd] = r.date.split('-').map(Number);
     ws.getCell(row,1).value = new Date(Date.UTC(yy, mm-1, dd));
     ws.getCell(row,1).numFmt = 'dd/mm/yyyy';
-    usedFields.forEach((f,fi)=>{
+    for(let fi=0; fi<usedFields.length; fi++){
+      const f = usedFields[fi];
       const c0 = 2+fi*2;
       const w = r.water?.[f.k] || {};
       const meterNum = parseFloat(w.meter);
-      const usageNum = parseFloat(w.usage);
+      const usageNum = await computeWaterUsage(f, records, i);
       ws.getCell(row,c0).value = isNaN(meterNum) ? null : meterNum;
-      ws.getCell(row,c0+1).value = isNaN(usageNum) ? null : usageNum;
-    });
-  });
+      ws.getCell(row,c0+1).value = (usageNum==null || isNaN(usageNum)) ? null : usageNum;
+    }
+  }
 
   ws.getColumn(1).width = 12;
   usedFields.forEach((f,i)=>{
