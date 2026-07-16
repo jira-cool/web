@@ -850,7 +850,7 @@ async function renderForm(rec){
           const prev = await getPrevMeter(path, rec.date);
           const prevUsage = f.k==='fw' ? await getPrevMeter(`boiler.${b.key}.${f.k}.usage`, shiftDateStr(rec.date,-1)) : null;
           const curVal = {...(rec.boiler?.[b.key]?.[f.k] || {})};
-          if(f.k==='hours' && (curVal.usage==null||curVal.usage==='') && curVal.meter!=null && curVal.meter!=='' && prev!=null){
+          if((f.k==='hours'||f.k==='fuel') && (curVal.usage==null||curVal.usage==='') && curVal.meter!=null && curVal.meter!=='' && prev!=null){
             const m = parseFloat(curVal.meter);
             if(!isNaN(m) && m>=prev) curVal.usage = (m-prev).toFixed(2);
           }
