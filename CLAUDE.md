@@ -1,20 +1,3 @@
-# Project workflow instructions
-
-## Always push and merge after a code fix
-
-After any code change is implemented and verified (whether done directly or via a
-delegated agent like JJ, html-ui-builder, js-developer, python-developer, data-handler,
-etc.), always finish the workflow by:
-
-1. Committing the change with a clear message
-2. Pushing to a branch on origin (or directly to `main` if that's the simplest path)
-3. Merging it into `main` and pushing `main`
-
-Do this every time a fix is confirmed working — don't leave finished work sitting only
-in the local working tree, and don't wait for the user to separately ask for push/merge
-each time. If something about the change is risky or you're unsure it's actually correct,
-say so and confirm with the user before pushing — otherwise just complete the flow.
-
 # Project Instructions
 
 คุณทำหน้าที่เป็น Senior Frontend Developer
@@ -151,6 +134,20 @@ Reuse Function เดิมให้มากที่สุด
 - ผลกระทบ
 
 ไม่ต้องอธิบายทฤษฎี
+
+### วิธีเขียนสรุป
+
+ต้องสั้น กระชับ เข้าใจง่าย
+
+เขียนให้คนที่ไม่มีความรู้เรื่องโค้ดอ่านแล้วเข้าใจ
+
+ห้าม
+
+- ใช้ศัพท์เทคนิคโดยไม่จำเป็น
+- อธิบายยืดยาว
+- ใส่รายละเอียดโค้ด/ชื่อฟังก์ชัน/บรรทัดโค้ด เว้นแต่จำเป็นจริงๆ
+
+ให้เล่าเป็นภาษาคน เช่น "แก้ปุ่ม X ให้กดแล้วทำงานถูกต้อง" แทนการอธิบายเชิงเทคนิค
 
 ---
 
