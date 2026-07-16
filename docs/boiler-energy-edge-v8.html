@@ -835,7 +835,11 @@ async function renderForm(rec){
           const path = `boiler.${b.key}.${f.k}.meter`;
           const prev = await getPrevMeter(path, rec.date);
           const prevUsage = f.k==='fw' ? await getPrevMeter(`boiler.${b.key}.${f.k}.usage`, shiftDateStr(rec.date,-1)) : null;
-          const curVal = rec.boiler?.[b.key]?.[f.k] || {};
+          const curVal = {...(rec.boiler?.[b.key]?.[f.k] || {})};
+          if(f.k==='hours' && (curVal.usage==null||curVal.usage==='') && curVal.meter!=null && curVal.meter!=='' && prev!=null){
+            const m = parseFloat(curVal.meter);
+            if(!isNaN(m) && m>=prev) curVal.usage = (m-prev).toFixed(2);
+          }
           html += dualFieldHTML('boiler', b.key, f, curVal, prev, prevUsage, f.k==='fw');
         }
         html += `</div>`;
@@ -845,7 +849,11 @@ async function renderForm(rec){
           const path = `boiler.${b.key}.${f.k}.meter`;
           const prev = await getPrevMeter(path, rec.date);
           const prevUsage = f.k==='fw' ? await getPrevMeter(`boiler.${b.key}.${f.k}.usage`, shiftDateStr(rec.date,-1)) : null;
-          const curVal = rec.boiler?.[b.key]?.[f.k] || {};
+          const curVal = {...(rec.boiler?.[b.key]?.[f.k] || {})};
+          if(f.k==='hours' && (curVal.usage==null||curVal.usage==='') && curVal.meter!=null && curVal.meter!=='' && prev!=null){
+            const m = parseFloat(curVal.meter);
+            if(!isNaN(m) && m>=prev) curVal.usage = (m-prev).toFixed(2);
+          }
           html += dualFieldHTML('boiler', b.key, f, curVal, prev, prevUsage, f.k==='fw');
         } else if(f.mode==='ash4'){
           const cur = rec.boiler?.[b.key]?.[f.k] || {};
