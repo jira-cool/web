@@ -2129,7 +2129,10 @@ function resolveSteamCostColumns(ws){
   const compTrips = resolvePalmTripCols(ws, 'ความชื้นกะลาปาล์มจาก Boiler ทวนสอบ');
   R.palmShellTrips = supTrips.map((sup,i)=>({
     supplierWeight: sup.weight, supplierMoisture: sup.moisture,
-    companyWeight: compTrips[i]?.weight ?? null, companyMoisture: compTrips[i]?.moisture ?? null,
+    companyWeight: compTrips[i]?.weight ?? null,
+    // เดือนที่ฝั่ง LUF มีแค่คอลัมน์ %ชื้น ไม่มีคอลัมน์น้ำหนักของตัวเอง (เช่น 0326) ให้ใช้น้ำหนักเดียวกับ Supplier แทน
+    companyWeightFromSupplier: compTrips[i]?.weight==null && compTrips[i]?.moisture!=null,
+    companyMoisture: compTrips[i]?.moisture ?? null,
   }));
 
   return R;
@@ -2157,8 +2160,18 @@ function resolvePalmTripCols(ws, anchorLabel){
   // บางเดือน (เช่น 0426) label แถว 3 อยู่ตรงคอลัมน์ "ความชื้นเที่ยว1" แทนที่จะเป็น "น้ำหนักเที่ยว1"
   // จึงหาคอลัมน์ "น้ำหนักเที่ยว1" จริงใกล้ anchor แทนการอ้างอิง anchorIdx ตรงๆ กันคอลัมน์เลื่อน
   const weight1Idx = findColIndex(ws, 'น้ำหนักเที่ยว1', Math.max(0,anchorIdx-2), anchorIdx+2);
-  const base = weight1Idx!=null ? weight1Idx : anchorIdx;
-  return Array.from({length:6},(_,i)=>({weight:colLetter(base+2*i), moisture:colLetter(base+2*i+1)}));
+  if(weight1Idx!=null){
+    return Array.from({length:6},(_,i)=>({weight:colLetter(weight1Idx+2*i), moisture:colLetter(weight1Idx+2*i+1)}));
+  }
+  // บางเดือน (เช่น 0326) ฝั่งนี้มีแค่คอลัมน์ %ชื้นรายเที่ยว ไม่มีคอลัมน์น้ำหนักเลย — anchor คือคอลัมน์ %ชื้นเที่ยว1
+  // อ่านต่อเนื่องทีละคอลัมน์จนกว่าจะไม่ใช่ "ความชื้นเที่ยว..." แล้ว (เจอคอลัมน์ค่าเฉลี่ยรวม)
+  const out = [];
+  for(let i=0;i<6;i++){
+    if(!cellTextAt(ws, anchorIdx+i).includes('ความชื้นเที่ยว')) break;
+    out.push({weight:null, moisture:colLetter(anchorIdx+i)});
+  }
+  while(out.length<6) out.push({weight:null, moisture:null});
+  return out;
 }
 
 function importGetCell(ws, col, row){
@@ -2261,7 +2274,12 @@ async function handleExcelImport(){
     R.palmShellTrips.forEach((cols,i)=>{
       setCol(rec.palmShell.trips[i],'supplierWeight', cols.supplierWeight, row);
       setCol(rec.palmShell.trips[i],'supplierMoisture', cols.supplierMoisture, row);
-      setCol(rec.palmShell.trips[i],'companyWeight', cols.companyWeight, row);
+      if(cols.companyWeightFromSupplier){
+        const supVal = cols.supplierWeight!=null ? importGetCell(ws, cols.supplierWeight, row) : '';
+        if(supVal!=='') rec.palmShell.trips[i].companyWeight = supVal;
+      } else {
+        setCol(rec.palmShell.trips[i],'companyWeight', cols.companyWeight, row);
+      }
       setCol(rec.palmShell.trips[i],'companyMoisture', cols.companyMoisture, row);
     });
     importSetIf(rec.palmShell,'price', importGetCell(ws,IMPORT_MAP.palmShellPrice,row));
