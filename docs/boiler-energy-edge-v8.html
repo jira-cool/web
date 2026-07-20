@@ -988,6 +988,10 @@ function buildBoiler5LogSheet(values){
   for(let r=0;r<t.nrows;r++){
     if(t.rowHeights[r]!=null) ws.getRow(r+1).height = t.rowHeights[r];
   }
+  // checkbox rows only ever hold a short single-line label + the tick boxes (no other
+  // merges rely on their height), so shrinking just these rows is safe.
+  const checkboxRows = [...new Set(BOILER5_CHECKBOX_CELLS.map(([r])=>r))];
+  checkboxRows.forEach(r=>{ ws.getRow(r+1).height = 14; });
   const ps = t.pageSetup;
   ws.pageSetup = {
     paperSize: ps.paperSize,
