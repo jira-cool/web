@@ -992,6 +992,43 @@ async function renderForm(rec){
   document.getElementById('saveBtn').onclick = onSave;
   document.getElementById('clearBtn').onclick = onClearCategory;
 
+  // Water: กรอกฝั่งไหนก็ได้ อีกฝั่งคำนวณให้อัตโนมัติ (ไม่มีการแจ้งเตือน/ตรวจสอบใดๆ)
+  document.querySelectorAll('.field-pair[data-prev]').forEach(pair=>{
+    const meterInput = pair.querySelector('input[data-role="meter"][data-cat="water"]');
+    const usageInput = pair.querySelector('input[data-role="usage"][data-cat="water"]');
+    if(!meterInput || !usageInput) return;
+    const prevRaw = pair.dataset.prev;
+    const prev = prevRaw==='' ? null : parseFloat(prevRaw);
+    if(prev==null) return;
+
+    meterInput.addEventListener('input', ()=>{
+      if(meterInput.value==='') return;
+      const m = parseFloat(meterInput.value);
+      if(!isNaN(m)) usageInput.value = (m-prev).toFixed(2);
+    });
+    usageInput.addEventListener('input', ()=>{
+      if(usageInput.value==='') return;
+      const u = parseFloat(usageInput.value);
+      if(!isNaN(u)) meterInput.value = (u+prev).toFixed(2);
+    });
+  });
+
+  // Boiler: กรอกมิเตอร์ → คำนวณยอดใช้ให้อัตโนมัติ (ทางเดียว ไม่มีการแจ้งเตือน)
+  document.querySelectorAll('.field-pair[data-prev]').forEach(pair=>{
+    const meterInput = pair.querySelector('input[data-role="meter"][data-cat="boiler"]');
+    const usageInput = pair.querySelector('input[data-role="usage"][data-cat="boiler"]');
+    if(!meterInput || !usageInput) return;
+    const prevRaw = pair.dataset.prev;
+    const prev = prevRaw==='' ? null : parseFloat(prevRaw);
+    if(prev==null) return;
+
+    meterInput.addEventListener('input', ()=>{
+      if(meterInput.value==='') return;
+      const m = parseFloat(meterInput.value);
+      if(!isNaN(m)) usageInput.value = (m-prev).toFixed(2);
+    });
+  });
+
   const elecGroup = document.getElementById('electricityGroup');
   if(elecGroup){
     elecGroup.addEventListener('paste', (e)=>{
