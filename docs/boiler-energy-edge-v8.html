@@ -2262,8 +2262,14 @@ async function handleWaterExcelImport(){
         prevEntry = await getPrevMeterDated(`water.${waterKey}.meter`, dateStr);
       }
       if(prevEntry!=null){
+        // มิเตอร์วันนี้ - มิเตอร์ครั้งก่อน = ปริมาณการใช้ของ "วันครั้งก่อน" (ปิดรอบตอนจดมิเตอร์วันนี้) จึงบันทึกลง record ของ prevEntry.date
         const usage = numv-prevEntry.value;
-        if(usage>=0) rec.water[waterKey].usage = String(Math.round(usage*1000)/1000);
+        if(usage>=0){
+          const prevRec = await loadRecord(prevEntry.date);
+          if(!prevRec.water[waterKey]) prevRec.water[waterKey] = {meter:'',usage:''};
+          prevRec.water[waterKey].usage = String(Math.round(usage*1000)/1000);
+          await saveRecord(prevRec);
+        }
       }
       lastMeter[waterKey]={date:dateStr, value:numv};
       touched = true;
@@ -2280,7 +2286,11 @@ async function handleWaterExcelImport(){
       }
       if(prevEntry!=null){
         const usage = numv - prevEntry.value;
-        if(usage>=0) rec.boiler[boilerKey].fw.usage = String(Math.round(usage*1000)/1000);
+        if(usage>=0){
+          const prevRec = await loadRecord(prevEntry.date);
+          prevRec.boiler[boilerKey].fw.usage = String(Math.round(usage*1000)/1000);
+          await saveRecord(prevRec);
+        }
       }
       lastMeter['fw_'+boilerKey] = {date:dateStr, value:numv};
       touched = true;
