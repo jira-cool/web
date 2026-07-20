@@ -1011,6 +1011,11 @@ async function renderForm(rec){
       const u = parseFloat(usageInput.value);
       if(!isNaN(u)) meterInput.value = (u+prev).toFixed(2);
     });
+
+    if(meterInput.value!=='' && usageInput.value===''){
+      const m = parseFloat(meterInput.value);
+      if(!isNaN(m)) usageInput.value = (m-prev).toFixed(2);
+    }
   });
 
   // Boiler: กรอกมิเตอร์ → คำนวณยอดใช้ให้อัตโนมัติ (ทางเดียว ไม่มีการแจ้งเตือน)
@@ -1027,6 +1032,11 @@ async function renderForm(rec){
       const m = parseFloat(meterInput.value);
       if(!isNaN(m)) usageInput.value = (m-prev).toFixed(2);
     });
+
+    if(meterInput.value!=='' && usageInput.value===''){
+      const m = parseFloat(meterInput.value);
+      if(!isNaN(m)) usageInput.value = (m-prev).toFixed(2);
+    }
   });
 
   const elecGroup = document.getElementById('electricityGroup');
