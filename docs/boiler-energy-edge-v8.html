@@ -285,6 +285,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   <div class="tabs" id="tabBar"></div>
   <div id="formArea"></div>
   <div id="summaryArea" style="display:none;"></div>
+  <div id="logSheetArea" style="display:none;"></div>
 
   <details class="importCollapse" id="importSection">
     <summary>นำเข้าข้อมูลจาก Excel (คลิกเพื่อเปิด/ปิด)</summary>
@@ -525,6 +526,7 @@ let summaryWaterMonth = null;
 let summaryDailyMonth = null;
 let summaryRawDataTopic = 0;
 let summaryKpiDay = null;
+let logSheetSubTab = 'no5';
 let currentDate = todayStr();
 let cache = {};
 let allDatesCache = null;
@@ -767,6 +769,11 @@ function sumMeterUsage(records, meterKey){
 function renderTabs(rec){
   const bar = document.getElementById('tabBar');
   bar.innerHTML = '';
+  const logBtn = document.createElement('button');
+  logBtn.className = 'tab-btn'+(activeTab==='__logsheet__' ? ' active':'');
+  logBtn.innerHTML = '<span class="dot" style="background:var(--steel)"></span><span>📋 ใบจดเครื่อง</span>';
+  logBtn.onclick = async ()=>{ activeTab='__logsheet__'; renderTabs(await loadRecord(currentDate)); showLogSheet(); };
+  bar.appendChild(logBtn);
   const sumBtn = document.createElement('button');
   sumBtn.className = 'tab-btn summary'+(activeTab==='__summary__' ? ' active':'');
   sumBtn.innerHTML = '<span class="dot" style="background:var(--steel)"></span><span>📊 Report</span>';
@@ -775,11 +782,49 @@ function renderTabs(rec){
   CATEGORIES.forEach(c=>{
     const btn = document.createElement('button');
     const filled = categoryHasData(rec, c.key);
-    btn.className = 'tab-btn'+(c.key===activeTab && activeTab!=='__summary__' ? ' active':'')+(filled?' filled':'');
+    btn.className = 'tab-btn'+(c.key===activeTab && activeTab!=='__summary__' && activeTab!=='__logsheet__' ? ' active':'')+(filled?' filled':'');
     btn.innerHTML = '<span class="dot"></span><span>'+c.icon+' '+c.label+'</span>';
-    btn.onclick = ()=>{ activeTab = c.key; document.getElementById('summaryArea').style.display='none'; document.getElementById('formArea').style.display='block'; refresh(); };
+    btn.onclick = ()=>{ activeTab = c.key; document.getElementById('summaryArea').style.display='none'; document.getElementById('logSheetArea').style.display='none'; document.getElementById('formArea').style.display='block'; refresh(); };
     bar.appendChild(btn);
   });
+}
+
+/* ---------------- log sheet ---------------- */
+const LOG_SHEET_PAGES = [
+  { key:'no5', label:'Boiler no.5 (20ton)' },
+  { key:'no2', label:'Boiler no.2 (4ton)' },
+  { key:'no4', label:'Boiler no.4 (10ton)' },
+  { key:'water', label:'การใช้น้ำ' },
+  { key:'softWash', label:'ตารางล้าง Soft' },
+  { key:'chlorine', label:'วัดคลอรีน' },
+  { key:'gas', label:'การใช้แก๊ส' },
+];
+
+function showLogSheet(){
+  document.getElementById('formArea').style.display='none';
+  document.getElementById('summaryArea').style.display='none';
+  const area = document.getElementById('logSheetArea');
+  area.style.display='block';
+
+  const subtabsHtml = `<div class="subtabs">${LOG_SHEET_PAGES.map(p=>
+    `<button class="subtab-btn${logSheetSubTab===p.key?' active':''}" data-sub="${p.key}">${p.label}</button>`
+  ).join('')}</div>`;
+  const page = LOG_SHEET_PAGES.find(p=>p.key===logSheetSubTab) || LOG_SHEET_PAGES[0];
+
+  area.innerHTML = `<div class="panel"><h2>📋 ใบจดเครื่อง</h2>${subtabsHtml}
+    <div class="summary-toolbar" style="margin-top:14px;">
+      <div class="month-title" style="margin:0;">${page.label}</div>
+      <button class="btn btn-primary" id="exportLogSheetBtn">⬇ ส่งออกเป็น Excel (.xlsx)</button>
+    </div>
+    <div class="empty-state">ฟอร์มของหน้านี้ยังไม่ได้กำหนด — รอรายละเอียดเพิ่มเติม</div>
+  </div>`;
+
+  area.querySelectorAll('.subtab-btn').forEach(b=>{
+    b.onclick = ()=>{ logSheetSubTab = b.dataset.sub; showLogSheet(); };
+  });
+  document.getElementById('exportLogSheetBtn').onclick = ()=>{
+    alert('ฟีเจอร์ export ของหน้านี้ยังไม่ได้ตั้งค่า รอรายละเอียดฟอร์มเพิ่มเติม');
+  };
 }
 
 /* ---------------- field renderers ---------------- */
@@ -1322,6 +1367,7 @@ async function buildBoiler5DailyRows(records){
 /* ---------------- summary ---------------- */
 async function showSummary(){
   document.getElementById('formArea').style.display='none';
+  document.getElementById('logSheetArea').style.display='none';
   const area = document.getElementById('summaryArea');
   area.style.display='block';
   area.innerHTML = `<div class="panel"><h2>📊 สรุป</h2><p class="sub">กำลังโหลดข้อมูล...</p></div>`;
