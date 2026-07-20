@@ -747,7 +747,7 @@ function dualFieldHTML(catKey, groupPath, f, curVal, prev, prevUsage, usageReadO
       <div class="field"><label>${meterLabel}</label>
         <input type="text" inputmode="decimal" data-cat="${catKey}" data-path="${groupPath}" data-key="${f.k}" data-role="meter" value="${curVal.meter ?? ''}"></div>
       <div class="field"><label>${usageLabel}</label>
-        <input type="text" inputmode="decimal" data-cat="${catKey}" data-path="${groupPath}" data-key="${f.k}" data-role="usage" value="${curVal.usage ?? ''}" ${usageReadOnly?'readonly style="background:#f3f4f6;"':''}></div>
+        <input type="text" inputmode="decimal" data-cat="${catKey}" data-path="${groupPath}" data-key="${f.k}" data-role="usage" value="${curVal.usage ?? ''}"></div>
     </div>
   </div>`;
 }
@@ -992,75 +992,6 @@ async function renderForm(rec){
   document.getElementById('saveBtn').onclick = onSave;
   document.getElementById('clearBtn').onclick = onClearCategory;
 
-  document.querySelectorAll('.field-pair[data-prev]').forEach(pair=>{
-    const prevRaw = pair.dataset.prev;
-    const prev = prevRaw==='' ? null : parseFloat(prevRaw);
-    const prevUsageRaw = pair.dataset.prevUsage;
-    const prevUsage = prevUsageRaw==='' ? null : parseFloat(prevUsageRaw);
-    const meterInput = pair.querySelector('input[data-role="meter"]');
-    const usageInput = pair.querySelector('input[data-role="usage"]');
-    if(!meterInput || !usageInput) return;
-
-    // Live cross-fill while typing — no alerts here so typing isn't interrupted mid-number.
-    meterInput.addEventListener('input', ()=>{
-      if(prev!=null && meterInput.value!==''){
-        const m = parseFloat(meterInput.value);
-        if(!isNaN(m) && m >= prev) usageInput.value = (m-prev).toFixed(2);
-      }
-    });
-    usageInput.addEventListener('input', ()=>{
-      if(prev!=null && usageInput.value!==''){
-        const u = parseFloat(usageInput.value);
-        if(!isNaN(u) && u >= 0) meterInput.value = (u+prev).toFixed(2);
-      }
-    });
-
-    // Reasonableness check, only run once a final usage value is settled (after blur).
-    function checkUsageDrop(){
-      if(prevUsage==null || usageInput.value==='') return;
-      const u = parseFloat(usageInput.value);
-      if(isNaN(u)) return;
-      if(u < prevUsage*0.7){
-        const ok = confirm(`การใช้งานวันนี้ (${u}) ต่ำกว่าเมื่อวาน (${prevUsage}) เกิน 30% ต้องการยืนยันค่านี้หรือไม่?`);
-        if(!ok){
-          meterInput.value = '';
-          usageInput.value = '';
-        }
-      }
-    }
-
-    // Strict validation only after leaving the field, so it doesn't fire on every keystroke.
-    // Guard against blur fired by the DOM swap in renderForm() removing a still-focused
-    // input mid-render (isConnected===false) — that's teardown, not the user leaving the field.
-    meterInput.addEventListener('blur', ()=>{
-      if(!meterInput.isConnected) return;
-      if(prev==null || meterInput.value==='') return;
-      const m = parseFloat(meterInput.value);
-      if(isNaN(m)) return;
-      if(m < prev){
-        alert('มิเตอร์ปัจจุบันต้องไม่น้อยกว่าค่าวันก่อน');
-        meterInput.value = '';
-        usageInput.value = '';
-        return;
-      }
-      usageInput.value = (m-prev).toFixed(2);
-      checkUsageDrop();
-    });
-    usageInput.addEventListener('blur', ()=>{
-      if(!usageInput.isConnected) return;
-      if(prev==null || usageInput.value==='') return;
-      const u = parseFloat(usageInput.value);
-      if(isNaN(u)) return;
-      if(u < 0){
-        alert('Usage ต้องไม่ติดลบ');
-        usageInput.value = '';
-        return;
-      }
-      meterInput.value = (u+prev).toFixed(2);
-      checkUsageDrop();
-    });
-  });
-
   const elecGroup = document.getElementById('electricityGroup');
   if(elecGroup){
     elecGroup.addEventListener('paste', (e)=>{
@@ -1078,26 +1009,9 @@ async function renderForm(rec){
 
 async function onSave(){
   const rec = await loadRecord(currentDate);
-  const prevDateStr = shiftDateStr(currentDate, -1);
-  let prevRec = null;
   const inputs = document.querySelectorAll('#formArea input[data-cat]');
   for(const inp of inputs){
     const {cat, path, key, role} = inp.dataset;
-    if(role==='usage' && inp.closest('.field-pair[data-prev]')){
-      // มิเตอร์ที่จดวันนี้ใช้คำนวณ "ปริมาณการใช้ของเมื่อวาน" (จดตอน 05:00 วันนี้ = ปิดรอบของเมื่อวาน) จึงบันทึกผลลง record ของวันก่อนหน้าแทนวันนี้
-      if(inp.value===''){ continue; }
-      if(!prevRec) prevRec = await loadRecord(prevDateStr);
-      if(cat==='boiler'){
-        if(!prevRec.boiler[path]) prevRec.boiler[path]={};
-        if(!prevRec.boiler[path][key]) prevRec.boiler[path][key]={};
-        prevRec.boiler[path][key].usage = inp.value;
-      } else {
-        if(!prevRec[cat]) prevRec[cat]={};
-        if(!prevRec[cat][key] || typeof prevRec[cat][key] !== 'object') prevRec[cat][key] = {};
-        prevRec[cat][key].usage = inp.value;
-      }
-      continue;
-    }
     if(cat==='palmShell' && path==='trips'){
       const [idx, field] = key.split('_');
       if(!rec.palmShell) rec.palmShell = {trips:Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''})), price:'', ashRemoved:'', openingOverride:''};
@@ -1125,7 +1039,6 @@ async function onSave(){
     }
   }
   await saveRecord(rec);
-  if(prevRec) await saveRecord(prevRec);
   flashStatus('บันทึกแล้ว ✓');
   refresh();
 }
