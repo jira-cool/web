@@ -2224,6 +2224,8 @@ async function handleExcelImport(){
   const R = resolveSteamCostColumns(ws);
   const setCol = (obj,key,c,row)=>{ if(c!=null) importSetIf(obj,key,importGetCell(ws,c,row)); };
   const expectedMonth = clearFirst ? parseSheetMonth(sheetName) : null;
+  // sheet 0126/0226 ใช้ข้อมูลค่าไฟเท่านั้น ส่วนอื่นไม่ได้ใช้งาน จึง import เฉพาะค่าไฟ
+  const electricityOnly = (sheetName==='0126' || sheetName==='0226');
 
   let imported=0, skippedOutOfMonth=0;
   for(let row=5; row<=60; row++){
@@ -2242,47 +2244,51 @@ async function handleExcelImport(){
     const rec = await loadRecord(dateStr);
 
     if(clearFirst){
-      if(R.boilerNo5){
-        rec.boiler.no5.fuel.left=''; rec.boiler.no5.fuel.right='';
-        rec.boiler.no5.hours.meter=''; rec.boiler.no5.hours.usage='';
+      if(!electricityOnly){
+        if(R.boilerNo5){
+          rec.boiler.no5.fuel.left=''; rec.boiler.no5.fuel.right='';
+          rec.boiler.no5.hours.meter=''; rec.boiler.no5.hours.usage='';
+        }
+        if(R.ash){ rec.boiler.no5.ash.r1=''; rec.boiler.no5.ash.r2=''; rec.boiler.no5.ash.r3=''; }
+        if(R.wetScrubber!=null) rec.boiler.no5.ash.wetScrubber='';
+        if(R.palmShellTrips && R.palmShellTrips.some(c=>c.supplierWeight!=null||c.companyWeight!=null)){
+          rec.palmShell.trips = Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''}));
+        }
+        rec.palmShell.price = '';
       }
-      if(R.ash){ rec.boiler.no5.ash.r1=''; rec.boiler.no5.ash.r2=''; rec.boiler.no5.ash.r3=''; }
-      if(R.wetScrubber!=null) rec.boiler.no5.ash.wetScrubber='';
-      if(R.palmShellTrips && R.palmShellTrips.some(c=>c.supplierWeight!=null||c.companyWeight!=null)){
-        rec.palmShell.trips = Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''}));
-      }
-      rec.palmShell.price = '';
       if(R.electricity){ rec.electricity.rateA=''; rec.electricity.rateB=''; rec.electricity.rateC=''; }
     }
 
-    if(R.boilerNo5){
-      setCol(rec.boiler.no5.fuel,'left', R.boilerNo5.fuelLeft, row);
-      setCol(rec.boiler.no5.fuel,'right', R.boilerNo5.fuelRight, row);
-      setCol(rec.boiler.no5.hours,'meter', R.boilerNo5.hoursMeter, row);
-      setCol(rec.boiler.no5.hours,'usage', R.boilerNo5.hoursUsage, row);
-    }
-    if(R.ash){
-      setCol(rec.boiler.no5.ash,'r1', R.ash.r1, row);
-      setCol(rec.boiler.no5.ash,'r2', R.ash.r2, row);
-      setCol(rec.boiler.no5.ash,'r3', R.ash.r3, row);
-    }
-    setCol(rec.boiler.no5.ash,'wetScrubber', R.wetScrubber, row);
-
-    if(!rec.palmShell.trips || rec.palmShell.trips.length<6){
-      rec.palmShell.trips = Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''}));
-    }
-    R.palmShellTrips.forEach((cols,i)=>{
-      setCol(rec.palmShell.trips[i],'supplierWeight', cols.supplierWeight, row);
-      setCol(rec.palmShell.trips[i],'supplierMoisture', cols.supplierMoisture, row);
-      if(cols.companyWeightFromSupplier){
-        const supVal = cols.supplierWeight!=null ? importGetCell(ws, cols.supplierWeight, row) : '';
-        if(supVal!=='') rec.palmShell.trips[i].companyWeight = supVal;
-      } else {
-        setCol(rec.palmShell.trips[i],'companyWeight', cols.companyWeight, row);
+    if(!electricityOnly){
+      if(R.boilerNo5){
+        setCol(rec.boiler.no5.fuel,'left', R.boilerNo5.fuelLeft, row);
+        setCol(rec.boiler.no5.fuel,'right', R.boilerNo5.fuelRight, row);
+        setCol(rec.boiler.no5.hours,'meter', R.boilerNo5.hoursMeter, row);
+        setCol(rec.boiler.no5.hours,'usage', R.boilerNo5.hoursUsage, row);
       }
-      setCol(rec.palmShell.trips[i],'companyMoisture', cols.companyMoisture, row);
-    });
-    importSetIf(rec.palmShell,'price', importGetCell(ws,IMPORT_MAP.palmShellPrice,row));
+      if(R.ash){
+        setCol(rec.boiler.no5.ash,'r1', R.ash.r1, row);
+        setCol(rec.boiler.no5.ash,'r2', R.ash.r2, row);
+        setCol(rec.boiler.no5.ash,'r3', R.ash.r3, row);
+      }
+      setCol(rec.boiler.no5.ash,'wetScrubber', R.wetScrubber, row);
+
+      if(!rec.palmShell.trips || rec.palmShell.trips.length<6){
+        rec.palmShell.trips = Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''}));
+      }
+      R.palmShellTrips.forEach((cols,i)=>{
+        setCol(rec.palmShell.trips[i],'supplierWeight', cols.supplierWeight, row);
+        setCol(rec.palmShell.trips[i],'supplierMoisture', cols.supplierMoisture, row);
+        if(cols.companyWeightFromSupplier){
+          const supVal = cols.supplierWeight!=null ? importGetCell(ws, cols.supplierWeight, row) : '';
+          if(supVal!=='') rec.palmShell.trips[i].companyWeight = supVal;
+        } else {
+          setCol(rec.palmShell.trips[i],'companyWeight', cols.companyWeight, row);
+        }
+        setCol(rec.palmShell.trips[i],'companyMoisture', cols.companyMoisture, row);
+      });
+      importSetIf(rec.palmShell,'price', importGetCell(ws,IMPORT_MAP.palmShellPrice,row));
+    }
 
     if(R.electricity){
       setCol(rec.electricity,'rateA', R.electricity.rateA, row);
