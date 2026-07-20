@@ -1962,30 +1962,51 @@ function buildWaterMetersSheet(records, monthTag){
 }
 
 // ตารางมิเตอร์น้ำแบบมีสี (ใช้ ExcelJS เพราะ SheetJS รุ่นฟรีเขียนสีเซลล์ไม่ได้)
-// แถวชื่อหมวด (ครอบ 2 คอลัมน์ Meter/m3) ใส่สีเหลืองตัวหนา ตรงกับไฟล์ต้นฉบับ
+// สี/โครงหัวตาราง อ้างอิงจากฟอร์มต้นฉบับที่บริษัทใช้จริง: เหลือง=ชื่อหมวด+วันที่, น้ำเงิน=ชื่อมิเตอร์/หน่วย, เขียวอ่อน=คอลัมน์ปริมาณใช้ (คำนวณ)
 async function buildWaterMetersWorkbookColored(records, monthTag){
   const usedFields = getUsedWaterFields(records);
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Water');
   const ncol = 1 + usedFields.length*2;
 
+  const BLUE = { type:'pattern', pattern:'solid', fgColor:{argb:'FF4472C4'} };
+  const YELLOW = { type:'pattern', pattern:'solid', fgColor:{argb:'FFFFFF00'} };
+  const GREEN = { type:'pattern', pattern:'solid', fgColor:{argb:'FF99FFCC'} };
+  const WHITE_BOLD = { bold:true, color:{argb:'FFFFFFFF'}, size:13 };
+  const WHITE_TEXT = { color:{argb:'FFFFFFFF'}, size:11 };
+  const centerMid = { horizontal:'center', vertical:'middle' };
+
   ws.mergeCells(1,1,1,ncol);
   ws.getCell(1,1).value = 'Water Usage Daily Report';
   ws.mergeCells(2,1,2,ncol);
   ws.getCell(2,1).value = `Engineering Department / Power Plant Section / Boiler Unit — ${monthTag}`;
 
-  const headerFill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFFFFF00'} };
   ws.getCell(5,1).value = 'วันที่';
+  ws.getCell(5,1).fill = YELLOW;
+  ws.getCell(5,1).font = { bold:true };
+  ws.getCell(5,1).alignment = centerMid;
   usedFields.forEach((f,i)=>{
     const c0 = 2+i*2;
-    ws.mergeCells(4, c0, 4, c0+1);
-    const catCell = ws.getCell(4, c0);
+    ws.mergeCells(3, c0, 3, c0+1);
+    const catCell = ws.getCell(3, c0);
     catCell.value = WATER_METER_LABELS[f.k] || f.k;
-    catCell.fill = headerFill;
+    catCell.fill = YELLOW;
     catCell.font = { bold:true };
-    catCell.alignment = { horizontal:'center' };
-    ws.getCell(5, c0).value = `Meter ${f.k.toUpperCase()}`;
-    ws.getCell(5, c0+1).value = 'm3';
+    catCell.alignment = centerMid;
+
+    ws.mergeCells(4, c0, 4, c0+1);
+    const meterNameCell = ws.getCell(4, c0);
+    meterNameCell.value = `Meter ${f.k.toUpperCase()}`;
+    meterNameCell.fill = BLUE;
+    meterNameCell.font = WHITE_BOLD;
+    meterNameCell.alignment = centerMid;
+
+    const meterCell = ws.getCell(5, c0);
+    meterCell.value = 'Meter';
+    meterCell.fill = BLUE; meterCell.font = WHITE_TEXT; meterCell.alignment = centerMid;
+    const usageCell = ws.getCell(5, c0+1);
+    usageCell.value = 'm3';
+    usageCell.fill = BLUE; usageCell.font = WHITE_TEXT; usageCell.alignment = centerMid;
   });
 
   for(let i=0; i<records.length; i++){
@@ -1993,8 +2014,11 @@ async function buildWaterMetersWorkbookColored(records, monthTag){
     const row = 6+i;
     // ใช้ Date.UTC ตรงๆ กันปัญหาเดียวกับ timezone ในไทย (UTC+7) ที่ทำให้เที่ยงคืนตามเวลาท้องถิ่นเพี้ยนไปเป็นวันก่อนหน้าตอนแปลงเป็น UTC
     const [yy,mm,dd] = r.date.split('-').map(Number);
-    ws.getCell(row,1).value = new Date(Date.UTC(yy, mm-1, dd));
-    ws.getCell(row,1).numFmt = 'dd/mm/yyyy';
+    const dateCell = ws.getCell(row,1);
+    dateCell.value = new Date(Date.UTC(yy, mm-1, dd));
+    dateCell.numFmt = 'dd-mmm-yy';
+    dateCell.fill = YELLOW;
+    dateCell.alignment = { horizontal:'center' };
     for(let fi=0; fi<usedFields.length; fi++){
       const f = usedFields[fi];
       const c0 = 2+fi*2;
@@ -2002,22 +2026,26 @@ async function buildWaterMetersWorkbookColored(records, monthTag){
       const meterNum = parseFloat(w.meter);
       const usageNum = await computeWaterUsage(f, records, i);
       ws.getCell(row,c0).value = isNaN(meterNum) ? null : meterNum;
-      ws.getCell(row,c0+1).value = (usageNum==null || isNaN(usageNum)) ? null : usageNum;
+      const usageCell = ws.getCell(row,c0+1);
+      usageCell.value = (usageNum==null || isNaN(usageNum)) ? null : usageNum;
+      usageCell.fill = GREEN;
     }
   }
 
-  ws.getColumn(1).width = 12;
+  ws.getColumn(1).width = 11;
   usedFields.forEach((f,i)=>{
-    ws.getColumn(2+i*2).width = 12;
-    ws.getColumn(2+i*2+1).width = 9;
+    ws.getColumn(2+i*2).width = 14.43;
+    ws.getColumn(2+i*2+1).width = 14.43;
   });
 
-  // เส้นตารางบาง ครอบตั้งแต่แถวหัวตาราง (4) ถึงแถวข้อมูลสุดท้าย ให้อ่านง่ายขึ้น
+  // เส้นตารางบาง ครอบตั้งแต่แถวหัวตาราง (3) ถึงแถวข้อมูลสุดท้าย ให้อ่านง่ายขึ้น เส้นหนา (medium) คั่นก่อนมิเตอร์แต่ละตัวให้แยกกลุ่มชัดเจนเหมือนต้นฉบับ
   const thinBorder = { style:'thin' };
+  const mediumBorder = { style:'medium' };
   const lastRow = 5 + records.length;
-  for(let r=4; r<=lastRow; r++){
+  for(let r=3; r<=lastRow; r++){
     for(let c=1; c<=ncol; c++){
-      ws.getCell(r,c).border = { top:thinBorder, left:thinBorder, bottom:thinBorder, right:thinBorder };
+      const isGroupStart = (c===1) || ((c-2)%2===0);
+      ws.getCell(r,c).border = { top:thinBorder, left:isGroupStart?mediumBorder:thinBorder, bottom:thinBorder, right:thinBorder };
     }
   }
 
