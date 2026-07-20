@@ -245,10 +245,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="field"><label>ชื่อ Sheet</label><input type="text" id="importSheetName" value="0726"></div>
         </div>
         <div class="actions" style="justify-content:flex-start; margin-top:10px;">
-          <button class="btn btn-primary" id="importBtn">นำเข้าข้อมูล</button>
+          <button class="btn btn-primary" id="importBtn">Importจากไฟล์ต้นทุนไอน้ำ</button>
         </div>
         <p class="note-line" id="importLog"></p>
-        <p class="note-line">หมายเหตุ: นำเข้าได้เฉพาะ Boiler (เชื้อเพลิง/ASH/ชั่วโมงทำงาน), Palm shell (เที่ยวชั่ง+ราคา), Bunk oil (ราคา), Water (มิเตอร์ M1 + ราคาน้ำคงที่ 41.17 — เฉพาะมิเตอร์ ยังไม่คำนวณ usage ให้), Electricity (Rate A/B/C) — ช่องอื่นต้องกรอกเอง / ตั้งค่า Blowdown ต้องกรอกเองเสมอ</p>
+        <p class="note-line">หมายเหตุ: นำเข้าได้เฉพาะ Boiler no.5 (เชื้อเพลิง/ASH/ชั่วโมงทำงาน), Palm shell (เที่ยวชั่ง+ราคา), Electricity (Rate A/B/C) — ช่องอื่นต้องกรอกเอง / ตั้งค่า Blowdown ต้องกรอกเองเสมอ</p>
       </div>
       <div class="panel" id="importWaterPanel" style="margin-bottom:14px;">
         <h2>💧 นำเข้ามิเตอร์น้ำจาก Excel (การใช้น้ำประจำวัน)</h2>
@@ -258,7 +258,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="field"><label>ชื่อ Sheet</label><input type="text" id="importWaterSheetName" value="0726"></div>
         </div>
         <div class="actions" style="justify-content:flex-start; margin-top:10px;">
-          <button class="btn btn-primary" id="importWaterBtn">นำเข้ามิเตอร์น้ำ</button>
+          <button class="btn btn-primary" id="importWaterBtn">Importจากไฟล์การใช้น้ำประจำวัน</button>
         </div>
         <p class="note-line" id="importWaterLog"></p>
         <p class="note-line">หมายเหตุ: ใช้มิเตอร์นี้กรอก Feed water ของ Boiler ให้ด้วย: no.2←M5, no.4←M27, no.5←M12</p>
@@ -273,7 +273,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="field"><label>ชื่อ Sheet กะลาปาล์ม (Boiler no.5)</label><input type="text" id="importUtilityPalmSheetName" value=""></div>
         </div>
         <div class="actions" style="justify-content:flex-start; margin-top:10px;">
-          <button class="btn btn-primary" id="importUtilityBtn">นำเข้าข้อมูล</button>
+          <button class="btn btn-primary" id="importUtilityBtn">Importจากไฟล์Utility</button>
         </div>
         <p class="note-line" id="importUtilityLog"></p>
         <p class="note-line">หมายเหตุ: sheet เชื้อเพลิง/ชั่วโมงทำงาน กรอก Boiler no.2, no.4, no.5 (มิเตอร์+ปริมาณใช้ / มิเตอร์ชั่วโมง+จำนวนชั่วโมง) — sheet กะลาปาล์ม (ถ้ากรอก) ใช้เติมเชื้อเพลิง M4.1/M4.2 และขี้เถ้าของ Boiler no.5 ที่ไฟล์ต้นทุนไอน้ำบางเดือนไม่มี</p>
@@ -747,7 +747,7 @@ function dualFieldHTML(catKey, groupPath, f, curVal, prev, prevUsage, usageReadO
       <div class="field"><label>${meterLabel}</label>
         <input type="text" inputmode="decimal" data-cat="${catKey}" data-path="${groupPath}" data-key="${f.k}" data-role="meter" value="${curVal.meter ?? ''}"></div>
       <div class="field"><label>${usageLabel}</label>
-        <input type="text" inputmode="decimal" data-cat="${catKey}" data-path="${groupPath}" data-key="${f.k}" data-role="usage" value="${curVal.usage ?? ''}" ${usageReadOnly?'readonly style="background:#f3f4f6;"':''}></div>
+        <input type="text" inputmode="decimal" data-cat="${catKey}" data-path="${groupPath}" data-key="${f.k}" data-role="usage" value="${curVal.usage ?? ''}"></div>
     </div>
   </div>`;
 }
@@ -992,75 +992,6 @@ async function renderForm(rec){
   document.getElementById('saveBtn').onclick = onSave;
   document.getElementById('clearBtn').onclick = onClearCategory;
 
-  document.querySelectorAll('.field-pair[data-prev]').forEach(pair=>{
-    const prevRaw = pair.dataset.prev;
-    const prev = prevRaw==='' ? null : parseFloat(prevRaw);
-    const prevUsageRaw = pair.dataset.prevUsage;
-    const prevUsage = prevUsageRaw==='' ? null : parseFloat(prevUsageRaw);
-    const meterInput = pair.querySelector('input[data-role="meter"]');
-    const usageInput = pair.querySelector('input[data-role="usage"]');
-    if(!meterInput || !usageInput) return;
-
-    // Live cross-fill while typing — no alerts here so typing isn't interrupted mid-number.
-    meterInput.addEventListener('input', ()=>{
-      if(prev!=null && meterInput.value!==''){
-        const m = parseFloat(meterInput.value);
-        if(!isNaN(m) && m >= prev) usageInput.value = (m-prev).toFixed(2);
-      }
-    });
-    usageInput.addEventListener('input', ()=>{
-      if(prev!=null && usageInput.value!==''){
-        const u = parseFloat(usageInput.value);
-        if(!isNaN(u) && u >= 0) meterInput.value = (u+prev).toFixed(2);
-      }
-    });
-
-    // Reasonableness check, only run once a final usage value is settled (after blur).
-    function checkUsageDrop(){
-      if(prevUsage==null || usageInput.value==='') return;
-      const u = parseFloat(usageInput.value);
-      if(isNaN(u)) return;
-      if(u < prevUsage*0.7){
-        const ok = confirm(`การใช้งานวันนี้ (${u}) ต่ำกว่าเมื่อวาน (${prevUsage}) เกิน 30% ต้องการยืนยันค่านี้หรือไม่?`);
-        if(!ok){
-          meterInput.value = '';
-          usageInput.value = '';
-        }
-      }
-    }
-
-    // Strict validation only after leaving the field, so it doesn't fire on every keystroke.
-    // Guard against blur fired by the DOM swap in renderForm() removing a still-focused
-    // input mid-render (isConnected===false) — that's teardown, not the user leaving the field.
-    meterInput.addEventListener('blur', ()=>{
-      if(!meterInput.isConnected) return;
-      if(prev==null || meterInput.value==='') return;
-      const m = parseFloat(meterInput.value);
-      if(isNaN(m)) return;
-      if(m < prev){
-        alert('มิเตอร์ปัจจุบันต้องไม่น้อยกว่าค่าวันก่อน');
-        meterInput.value = '';
-        usageInput.value = '';
-        return;
-      }
-      usageInput.value = (m-prev).toFixed(2);
-      checkUsageDrop();
-    });
-    usageInput.addEventListener('blur', ()=>{
-      if(!usageInput.isConnected) return;
-      if(prev==null || usageInput.value==='') return;
-      const u = parseFloat(usageInput.value);
-      if(isNaN(u)) return;
-      if(u < 0){
-        alert('Usage ต้องไม่ติดลบ');
-        usageInput.value = '';
-        return;
-      }
-      meterInput.value = (u+prev).toFixed(2);
-      checkUsageDrop();
-    });
-  });
-
   const elecGroup = document.getElementById('electricityGroup');
   if(elecGroup){
     elecGroup.addEventListener('paste', (e)=>{
@@ -1078,26 +1009,9 @@ async function renderForm(rec){
 
 async function onSave(){
   const rec = await loadRecord(currentDate);
-  const prevDateStr = shiftDateStr(currentDate, -1);
-  let prevRec = null;
   const inputs = document.querySelectorAll('#formArea input[data-cat]');
   for(const inp of inputs){
     const {cat, path, key, role} = inp.dataset;
-    if(role==='usage' && inp.closest('.field-pair[data-prev]')){
-      // มิเตอร์ที่จดวันนี้ใช้คำนวณ "ปริมาณการใช้ของเมื่อวาน" (จดตอน 05:00 วันนี้ = ปิดรอบของเมื่อวาน) จึงบันทึกผลลง record ของวันก่อนหน้าแทนวันนี้
-      if(inp.value===''){ continue; }
-      if(!prevRec) prevRec = await loadRecord(prevDateStr);
-      if(cat==='boiler'){
-        if(!prevRec.boiler[path]) prevRec.boiler[path]={};
-        if(!prevRec.boiler[path][key]) prevRec.boiler[path][key]={};
-        prevRec.boiler[path][key].usage = inp.value;
-      } else {
-        if(!prevRec[cat]) prevRec[cat]={};
-        if(!prevRec[cat][key] || typeof prevRec[cat][key] !== 'object') prevRec[cat][key] = {};
-        prevRec[cat][key].usage = inp.value;
-      }
-      continue;
-    }
     if(cat==='palmShell' && path==='trips'){
       const [idx, field] = key.split('_');
       if(!rec.palmShell) rec.palmShell = {trips:Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''})), price:'', ashRemoved:'', openingOverride:''};
@@ -1125,7 +1039,6 @@ async function onSave(){
     }
   }
   await saveRecord(rec);
-  if(prevRec) await saveRecord(prevRec);
   flashStatus('บันทึกแล้ว ✓');
   refresh();
 }
@@ -1323,7 +1236,7 @@ async function showSummary(){
 
   const subtabsHtml = `<div class="subtabs">
     <button class="subtab-btn${summarySubTab==='daily'?' active':''}" data-sub="daily">สรุปรายวัน</button>
-    <button class="subtab-btn${summarySubTab==='monthlyCost'?' active':''}" data-sub="monthlyCost">ต้นทุนรายเดือน</button>
+    <button class="subtab-btn${summarySubTab==='monthlyCost'?' active':''}" data-sub="monthlyCost">สรุปรายเดือน</button>
     <button class="subtab-btn${summarySubTab==='accounting'?' active':''}" data-sub="accounting">รายงานส่งบัญชี</button>
     <button class="subtab-btn${summarySubTab==='water'?' active':''}" data-sub="water">การใช้น้ำ</button>
   </div>`;
@@ -1424,12 +1337,7 @@ async function renderDailySummary(subArea, records){
       <div class="kpi-card"><div class="kpi-label">น้ำมันเตาคงเหลือ</div><div class="kpi-value">${bunkRemain==null?'—':num(bunkRemain)}<span class="kpi-unit">liter</span></div></div>
     </div>
   </div>`;
-  html += `<div class="summary-toolbar" style="justify-content:flex-end;">
-    <button class="btn btn-primary" id="exportBtn">⬇ ส่งออกเป็น Excel (.xlsx)</button>
-  </div>`;
   subArea.innerHTML = html;
-
-  document.getElementById('exportBtn').onclick = ()=>exportExcel(records, flatColumns(), b5rows);
 }
 
 async function renderMonthlyCostView(subArea, records){
@@ -2261,12 +2169,6 @@ async function handleExcelImport(){
     }
     setCol(rec.boiler.no5.ash,'wetScrubber', R.wetScrubber, row);
 
-    importSetIf(rec.boiler.no2.fuel,'usage', importGetCell(ws,'N',row));
-    importSetIf(rec.boiler.no2.hours,'usage', importGetCell(ws,'M',row));
-
-    importSetIf(rec.boiler.no4.fuel,'usage', importGetCell(ws,'S',row));
-    importSetIf(rec.boiler.no4.hours,'usage', importGetCell(ws,'R',row));
-
     if(!rec.palmShell.trips || rec.palmShell.trips.length<6){
       rec.palmShell.trips = Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''}));
     }
@@ -2277,12 +2179,6 @@ async function handleExcelImport(){
       setCol(rec.palmShell.trips[i],'companyMoisture', cols.companyMoisture, row);
     });
     importSetIf(rec.palmShell,'price', importGetCell(ws,IMPORT_MAP.palmShellPrice,row));
-
-    importSetIf(rec.bunkOil,'price', importGetCell(ws,IMPORT_MAP.bunkOilPrice,row));
-
-    if(!rec.water.m1) rec.water.m1 = {meter:'',usage:''};
-    setCol(rec.water.m1,'meter', R.waterM1, row);
-    if(!rec.water.price) rec.water.price = String(IMPORT_MAP.waterPriceFixed);
 
     if(R.electricity){
       setCol(rec.electricity,'rateA', R.electricity.rateA, row);
