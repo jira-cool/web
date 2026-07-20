@@ -245,10 +245,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="field"><label>ชื่อ Sheet</label><input type="text" id="importSheetName" value="0726"></div>
         </div>
         <div class="actions" style="justify-content:flex-start; margin-top:10px;">
-          <button class="btn btn-primary" id="importBtn">นำเข้าข้อมูล</button>
+          <button class="btn btn-primary" id="importBtn">Importจากไฟล์ต้นทุนไอน้ำ</button>
         </div>
         <p class="note-line" id="importLog"></p>
-        <p class="note-line">หมายเหตุ: นำเข้าได้เฉพาะ Boiler (เชื้อเพลิง/ASH/ชั่วโมงทำงาน), Palm shell (เที่ยวชั่ง+ราคา), Bunk oil (ราคา), Water (มิเตอร์ M1 + ราคาน้ำคงที่ 41.17 — เฉพาะมิเตอร์ ยังไม่คำนวณ usage ให้), Electricity (Rate A/B/C) — ช่องอื่นต้องกรอกเอง / ตั้งค่า Blowdown ต้องกรอกเองเสมอ</p>
+        <p class="note-line">หมายเหตุ: นำเข้าได้เฉพาะ Boiler no.5 (เชื้อเพลิง/ASH/ชั่วโมงทำงาน), Palm shell (เที่ยวชั่ง+ราคา), Electricity (Rate A/B/C) — ช่องอื่นต้องกรอกเอง / ตั้งค่า Blowdown ต้องกรอกเองเสมอ</p>
       </div>
       <div class="panel" id="importWaterPanel" style="margin-bottom:14px;">
         <h2>💧 นำเข้ามิเตอร์น้ำจาก Excel (การใช้น้ำประจำวัน)</h2>
@@ -258,7 +258,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="field"><label>ชื่อ Sheet</label><input type="text" id="importWaterSheetName" value="0726"></div>
         </div>
         <div class="actions" style="justify-content:flex-start; margin-top:10px;">
-          <button class="btn btn-primary" id="importWaterBtn">นำเข้ามิเตอร์น้ำ</button>
+          <button class="btn btn-primary" id="importWaterBtn">Importจากไฟล์การใช้น้ำประจำวัน</button>
         </div>
         <p class="note-line" id="importWaterLog"></p>
         <p class="note-line">หมายเหตุ: ใช้มิเตอร์นี้กรอก Feed water ของ Boiler ให้ด้วย: no.2←M5, no.4←M27, no.5←M12</p>
@@ -273,7 +273,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="field"><label>ชื่อ Sheet กะลาปาล์ม (Boiler no.5)</label><input type="text" id="importUtilityPalmSheetName" value=""></div>
         </div>
         <div class="actions" style="justify-content:flex-start; margin-top:10px;">
-          <button class="btn btn-primary" id="importUtilityBtn">นำเข้าข้อมูล</button>
+          <button class="btn btn-primary" id="importUtilityBtn">Importจากไฟล์Utility</button>
         </div>
         <p class="note-line" id="importUtilityLog"></p>
         <p class="note-line">หมายเหตุ: sheet เชื้อเพลิง/ชั่วโมงทำงาน กรอก Boiler no.2, no.4, no.5 (มิเตอร์+ปริมาณใช้ / มิเตอร์ชั่วโมง+จำนวนชั่วโมง) — sheet กะลาปาล์ม (ถ้ากรอก) ใช้เติมเชื้อเพลิง M4.1/M4.2 และขี้เถ้าของ Boiler no.5 ที่ไฟล์ต้นทุนไอน้ำบางเดือนไม่มี</p>
@@ -2174,12 +2174,6 @@ async function handleExcelImport(){
     }
     setCol(rec.boiler.no5.ash,'wetScrubber', R.wetScrubber, row);
 
-    importSetIf(rec.boiler.no2.fuel,'usage', importGetCell(ws,'N',row));
-    importSetIf(rec.boiler.no2.hours,'usage', importGetCell(ws,'M',row));
-
-    importSetIf(rec.boiler.no4.fuel,'usage', importGetCell(ws,'S',row));
-    importSetIf(rec.boiler.no4.hours,'usage', importGetCell(ws,'R',row));
-
     if(!rec.palmShell.trips || rec.palmShell.trips.length<6){
       rec.palmShell.trips = Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''}));
     }
@@ -2190,12 +2184,6 @@ async function handleExcelImport(){
       setCol(rec.palmShell.trips[i],'companyMoisture', cols.companyMoisture, row);
     });
     importSetIf(rec.palmShell,'price', importGetCell(ws,IMPORT_MAP.palmShellPrice,row));
-
-    importSetIf(rec.bunkOil,'price', importGetCell(ws,IMPORT_MAP.bunkOilPrice,row));
-
-    if(!rec.water.m1) rec.water.m1 = {meter:'',usage:''};
-    setCol(rec.water.m1,'meter', R.waterM1, row);
-    if(!rec.water.price) rec.water.price = String(IMPORT_MAP.waterPriceFixed);
 
     if(R.electricity){
       setCol(rec.electricity,'rateA', R.electricity.rateA, row);
