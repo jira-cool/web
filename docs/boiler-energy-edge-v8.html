@@ -1236,7 +1236,7 @@ async function showSummary(){
 
   const subtabsHtml = `<div class="subtabs">
     <button class="subtab-btn${summarySubTab==='daily'?' active':''}" data-sub="daily">สรุปรายวัน</button>
-    <button class="subtab-btn${summarySubTab==='monthlyCost'?' active':''}" data-sub="monthlyCost">ต้นทุนรายเดือน</button>
+    <button class="subtab-btn${summarySubTab==='monthlyCost'?' active':''}" data-sub="monthlyCost">สรุปรายเดือน</button>
     <button class="subtab-btn${summarySubTab==='accounting'?' active':''}" data-sub="accounting">รายงานส่งบัญชี</button>
     <button class="subtab-btn${summarySubTab==='water'?' active':''}" data-sub="water">การใช้น้ำ</button>
   </div>`;
@@ -1337,12 +1337,7 @@ async function renderDailySummary(subArea, records){
       <div class="kpi-card"><div class="kpi-label">น้ำมันเตาคงเหลือ</div><div class="kpi-value">${bunkRemain==null?'—':num(bunkRemain)}<span class="kpi-unit">liter</span></div></div>
     </div>
   </div>`;
-  html += `<div class="summary-toolbar" style="justify-content:flex-end;">
-    <button class="btn btn-primary" id="exportBtn">⬇ ส่งออกเป็น Excel (.xlsx)</button>
-  </div>`;
   subArea.innerHTML = html;
-
-  document.getElementById('exportBtn').onclick = ()=>exportExcel(records, flatColumns(), b5rows);
 }
 
 async function renderMonthlyCostView(subArea, records){
