@@ -977,6 +977,11 @@ const BOILER5_CHECKBOX_CELLS = [
   [41,25],[41,27],
   [45,25],[45,27],
 ];
+// 0.57cm target size. Row height is exact (1cm = 28.3465pt). Column width uses Excel's
+// standard character-unit approximation (~7px/unit + 5px padding at the default font's
+// digit width) since ExcelJS has no direct cm unit for width — close but not pixel-exact.
+const BOILER5_CHECKBOX_HEIGHT_PT = 0.57 * 28.3465;
+const BOILER5_CHECKBOX_WIDTH_CHARS = (0.57 * 37.795 - 5) / 7;
 
 function buildBoiler5LogSheet(values){
   const t = BOILER5_LOG_TEMPLATE;
@@ -989,9 +994,13 @@ function buildBoiler5LogSheet(values){
     if(t.rowHeights[r]!=null) ws.getRow(r+1).height = t.rowHeights[r];
   }
   // checkbox rows only ever hold a short single-line label + the tick boxes (no other
-  // merges rely on their height), so shrinking just these rows is safe.
+  // merges rely on their height), so resizing just these rows is safe.
   const checkboxRows = [...new Set(BOILER5_CHECKBOX_CELLS.map(([r])=>r))];
-  checkboxRows.forEach(r=>{ ws.getRow(r+1).height = 14; });
+  checkboxRows.forEach(r=>{ ws.getRow(r+1).height = BOILER5_CHECKBOX_HEIGHT_PT; });
+  // NOTE: these columns are shared with the ก่อน/หลัง/รวม value blanks in items 1-3
+  // elsewhere on the sheet, so narrowing them also narrows those blanks.
+  const checkboxCols = [...new Set(BOILER5_CHECKBOX_CELLS.map(([,c])=>c))];
+  checkboxCols.forEach(c=>{ ws.getColumn(c+1).width = BOILER5_CHECKBOX_WIDTH_CHARS; });
   const ps = t.pageSetup;
   ws.pageSetup = {
     paperSize: ps.paperSize,
