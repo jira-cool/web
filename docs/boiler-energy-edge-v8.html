@@ -1492,7 +1492,7 @@ async function renderMonthlyCostView(subArea, records){
   subArea.innerHTML = html;
 
   document.getElementById('monthlyCostMonthSelect').onchange = (e)=>{ summaryMonthlyMonth = e.target.value; renderMonthlyCostView(subArea, records); };
-  document.getElementById('exportCostBtn').onclick = ()=>exportCostExcel([m]);
+  document.getElementById('exportCostBtn').onclick = ()=>exportMonthlySteamSummaryExcel(monthRecords, m.monthKey, m.kpi);
   document.getElementById('exportDashboardBtn').onclick = ()=>exportDashboardHtml([m], records);
   document.getElementById('rawDataTopicSelect').onchange = (e)=>{ summaryRawDataTopic = Number(e.target.value); renderMonthlyCostView(subArea, records); };
 }
@@ -1865,6 +1865,189 @@ function exportCostExcel(monthly){
     XLSX.utils.book_append_sheet(wb, ws, m.monthKey.slice(0,31));
   });
   XLSX.writeFile(wb, `boiler-monthly-cost.xlsx`);
+}
+
+// ===== ส่งออกสรุปรายเดือน ตามฟอร์ม "ส่ง0626" ของไฟล์ต้นทุนไอน้ำ (ตารางรายวัน + สรุปรายสัปดาห์ + สรุปต้นทุนเชื้อเพลิง) =====
+// คอลัมน์ "ยอดผลิต/บาทต่อกก.", "การใช้ LPG" และ "kW." (peak demand) ในฟอร์มต้นฉบับไม่มีข้อมูลจริงในแอป จึงตัดออก
+// (electricity.total ในแอปคือผลรวม rateA+rateB+rateC หน่วย kWh ไม่ใช่ peak demand kW แยกต่างหากแบบในฟอร์มต้นฉบับ)
+// คอลัมน์ "การใช้สตรีม (m³)" ใช้ผลรวมมิเตอร์น้ำ m5+m12+m27 (Boiler no.2+no.5+no.4) แทนตามที่ผู้ใช้ระบุ
+// ราคาคงที่ในสูตร (14.73 บาท/ลิตรน้ำมันเตา, 3.53 บาท/กก.กะลาปาล์ม, 0.1972 ค่า Ft, 41.17 บาท/ม³น้ำประปา, 2.73 ตัวคูณเทียบเชื้อเพลิง) เป็นค่าที่พิมพ์ตายตัวในไฟล์ต้นฉบับ ใช้ตามนั้นทุกประการ
+async function buildMonthlySummaryDailyRows(records, sc){
+  const out = [];
+  for(const r of records){
+    const bunkerLiter = sc[r.date]?.actualUse;
+    const palmKg = fuelNo5Kg(r);
+    const rateA=parseFloat(r.electricity?.rateA)||0, rateB=parseFloat(r.electricity?.rateB)||0, rateC=parseFloat(r.electricity?.rateC)||0;
+    const kwh = rateA+rateB+rateC;
+    const steamNo5 = await computeSteamNo5(r);
+    const steamNo2 = await computeSteamSimple(r,'no2');
+    const steamNo4 = await computeSteamSimple(r,'no4');
+    const steamNo24 = (steamNo2||0)+(steamNo4||0);
+    const waterTotal = parseFloat(r.water?.m1?.usage);
+    const steamWater = (parseFloat(r.water?.m5?.usage)||0)+(parseFloat(r.water?.m12?.usage)||0)+(parseFloat(r.water?.m27?.usage)||0);
+    const ashKg = ashTotalNo5(r);
+    out.push({
+      date: r.date,
+      water: isNaN(waterTotal) ? null : waterTotal,
+      steamWater: steamWater || null,
+      bunker: (bunkerLiter==null || isNaN(bunkerLiter)) ? null : bunkerLiter,
+      palm: palmKg || null,
+      kwh: kwh || null,
+      fuelRateNo24: (steamNo24>0 && bunkerLiter!=null && !isNaN(bunkerLiter)) ? bunkerLiter/steamNo24 : null,
+      fuelRateNo5: (steamNo5!=null && steamNo5>0) ? palmKg/steamNo5 : null,
+      ashPct: palmKg>0 ? ashKg/palmKg : null,
+      steamNo5: steamNo5||0, steamNo24,
+    });
+  }
+  return out;
+}
+function nonZeroAvg(vals){
+  const v = vals.filter(x=>x!=null && x!==0);
+  if(!v.length) return null;
+  return v.reduce((s,x)=>s+x,0)/v.length;
+}
+function sumOrNull(vals){
+  const v = vals.filter(x=>x!=null);
+  if(!v.length) return null;
+  return v.reduce((s,x)=>s+x,0);
+}
+function maxOrNull(vals){
+  const v = vals.filter(x=>x!=null);
+  if(!v.length) return null;
+  return Math.max(...v);
+}
+async function buildMonthlySteamSummarySheet(records, monthTag, kpi){
+  const sc = await computeStockCard();
+  const daily = await buildMonthlySummaryDailyRows(records, sc);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('สรุปการใช้พลังงาน');
+
+  const YELLOW = { type:'pattern', pattern:'solid', fgColor:{argb:'FFFFFF00'} };
+  const ORANGE = { type:'pattern', pattern:'solid', fgColor:{argb:'FFFFC000'} };
+  const LIGHTGRAY = { type:'pattern', pattern:'solid', fgColor:{argb:'FFEDEDED'} };
+  const BOXGRAY = { type:'pattern', pattern:'solid', fgColor:{argb:'FFE7E6E6'} };
+  const centerMid = { horizontal:'center', vertical:'middle' };
+  const thin = { style:'thin' };
+  const FMT_INT = '#,##0';
+  const FMT_DEC = '#,##0.00';
+  const FMT_PCT = '0.000%';
+  const FMT_DATE = 'mm-dd-yy';
+  const ncol = 9;
+
+  ws.mergeCells(1,1,1,ncol);
+  ws.getCell(1,1).value = `ข้อมูลการใช้พลังงานประจำวัน — เดือน ${monthTag}`;
+  ws.getCell(1,1).fill = YELLOW; ws.getCell(1,1).font = {bold:true, size:16}; ws.getCell(1,1).alignment = centerMid;
+
+  const headers = ['วันที่','การใช้น้ำรวมโรงงาน (m³)','การใช้สตรีม (m³)','การใช้น้ำมันเตา (liter)','การใช้กะลาปาล์ม (kg)','การใช้ไฟฟ้า (kWh)','ต้นทุนไอน้ำ B2+B4 (liter/ton steam)','ต้นทุนไอน้ำ B5 (kg/ton steam)','%ขี้เถ้า'];
+  headers.forEach((h,i)=>{
+    const cell = ws.getCell(2, i+1);
+    cell.value = h; cell.fill = ORANGE; cell.font = {bold:true, size:12};
+    cell.alignment = {...centerMid, wrapText:true};
+    cell.border = {top:thin,left:thin,right:thin,bottom:thin};
+  });
+
+  daily.forEach((d,i)=>{
+    const row = 3+i;
+    const [yy,mm,dd] = d.date.split('-').map(Number);
+    const dateCell = ws.getCell(row,1);
+    dateCell.value = new Date(Date.UTC(yy,mm-1,dd));
+    dateCell.numFmt = FMT_DATE; dateCell.fill = YELLOW; dateCell.font = {bold:true};
+    dateCell.alignment = {horizontal:'center'};
+    dateCell.border = {top:thin,left:thin,right:thin,bottom:thin};
+    const vals = [d.water, d.steamWater, d.bunker, d.palm, d.kwh, d.fuelRateNo24, d.fuelRateNo5, d.ashPct];
+    vals.forEach((v,ci)=>{
+      const cell = ws.getCell(row, ci+2);
+      cell.value = (v==null || isNaN(v)) ? null : v;
+      cell.numFmt = ci===7 ? FMT_PCT : (ci<=3 ? FMT_INT : FMT_DEC);
+      if(ci<=6) cell.fill = LIGHTGRAY;
+      cell.font = {bold:true};
+      cell.border = {top:thin,left:thin,right:thin,bottom:thin};
+    });
+  });
+
+  const lastDataRow = 2+daily.length;
+  const totalRow = lastDataRow+1;
+  const first = daily[0]?.date, last = daily[daily.length-1]?.date;
+  ws.getCell(totalRow,1).value = first && last ? `${first} - ${last}` : '';
+  const totals = [
+    sumOrNull(daily.map(d=>d.water)), sumOrNull(daily.map(d=>d.steamWater)),
+    sumOrNull(daily.map(d=>d.bunker)), sumOrNull(daily.map(d=>d.palm)), sumOrNull(daily.map(d=>d.kwh)),
+    nonZeroAvg(daily.map(d=>d.fuelRateNo24)), nonZeroAvg(daily.map(d=>d.fuelRateNo5)), null,
+  ];
+  totals.forEach((v,ci)=>{
+    const cell = ws.getCell(totalRow, ci+2);
+    cell.value = (v==null || isNaN(v)) ? null : v;
+    cell.numFmt = ci<=3 ? FMT_INT : FMT_DEC;
+    cell.fill = ORANGE; cell.font = {bold:true};
+    cell.border = {top:thin,left:thin,right:thin,bottom:thin};
+  });
+  ws.getCell(totalRow,1).fill = ORANGE; ws.getCell(totalRow,1).font = {bold:true};
+
+  // สรุปรายสัปดาห์ (แบ่งช่วงละ 7 วันจากวันแรกของเดือน)
+  let weekRow = totalRow+2;
+  const BLUEFONT = { argb:'FF030EE5' };
+  for(let wStart=0; wStart<daily.length; wStart+=7){
+    const chunk = daily.slice(wStart, wStart+7);
+    const r1 = weekRow, r2 = weekRow+1;
+    ws.getCell(r1,1).value = 'วันที่ต้นสัปดาห์'; ws.getCell(r2,1).value = 'วันสุดท้ายสัปดาห์';
+    [r1,r2].forEach(r=>{ ws.getCell(r,1).fill = BOXGRAY; ws.getCell(r,1).font = {color:BLUEFONT}; });
+    const dCell = ws.getCell(r1,2);
+    dCell.value = new Date(chunk[0].date+'T00:00:00Z'); dCell.numFmt = FMT_DATE; dCell.fill = YELLOW; dCell.font = {bold:true};
+    const wsums = [
+      sumOrNull(chunk.map(d=>d.water)), sumOrNull(chunk.map(d=>d.steamWater)),
+      sumOrNull(chunk.map(d=>d.bunker)), sumOrNull(chunk.map(d=>d.palm)), sumOrNull(chunk.map(d=>d.kwh)),
+      nonZeroAvg(chunk.map(d=>d.fuelRateNo24)), nonZeroAvg(chunk.map(d=>d.fuelRateNo5)),
+    ];
+    wsums.forEach((v,ci)=>{
+      const cell = ws.getCell(r1, ci+3);
+      cell.value = (v==null||isNaN(v)) ? null : v;
+      cell.numFmt = ci<=3 ? FMT_INT : FMT_DEC;
+      cell.fill = BOXGRAY; cell.font = {bold:true};
+      ws.mergeCells(r1, ci+3, r2, ci+3);
+    });
+    weekRow += 3;
+  }
+
+  // สรุปต้นทุนเชื้อเพลิง (ใช้ราคาคงที่ตามสูตรต้นฉบับ)
+  let sr = weekRow+1;
+  ws.getCell(sr,3).value = 'สรุปการใช้เชื้อเพลิง';
+  ws.getCell(sr,3).font = {bold:true, italic:true, underline:true, size:14};
+  sr += 2;
+  const totalPalm = totals[3] || 0, totalBunker = totals[2] || 0, totalKwhMonth = totals[4] || 0, totalWater = totals[0] || 0;
+  const avgFuelRateNo5 = totals[6];
+  const fuelSummaryRows = [
+    ['ใช้กะลาปาล์ม (สะสม)', totalPalm, 'kg', 'ต้นทุนไอน้ำ B5 เฉลี่ย', totals[6], 'kg / ton steam'],
+    ['ใช้น้ำมันเตา (สะสม)', totalBunker, 'liter', 'ต้นทุนไอน้ำ B2+B4 เฉลี่ย', totals[5], 'liter / ton steam'],
+    ['ราคาน้ำมันเตา 14.73 บาท/ลิตร', totalBunker*14.73, 'บาท', 'บาท/ตันไอน้ำ (B2+B4)', kpi.steamNo24>0 ? (totalBunker*14.73)/kpi.steamNo24 : null, 'บาท / ton steam'],
+    ['ราคากะลาปาล์ม 3.53 บาท/กก.', totalPalm*3.53, 'บาท', 'บาท/ตันไอน้ำ (B5)', kpi.steamNo5>0 ? (totalPalm*3.53)/kpi.steamNo5 : null, 'บาท / ton steam'],
+    ['การใช้ไฟฟ้า (สะสม)', totalKwhMonth, 'kWh', 'ค่าไฟฟ้าประมาณการ', kpi.elecCost, 'บาท'],
+    ['ค่า Ft', 0.1972, 'บาท', null, null, null],
+    ['คิดน้ำมันเตาเป็นกะลาปาล์มจะประหยัด', (totalBunker*14.73) - ((avgFuelRateNo5||0)*kpi.steamNo24*2.73), 'บาท', 'ประมาณการค่าน้ำประปา (41.17 บาท/m³)', totalWater*41.17, 'บาท'],
+  ];
+  fuelSummaryRows.forEach(([lb,lv,lu,rb,rv,ru])=>{
+    ws.getCell(sr,4).value = lb;
+    const lvc = ws.getCell(sr,6); lvc.value = (lv==null||isNaN(lv))?null:lv; lvc.numFmt = FMT_DEC; lvc.fill = BOXGRAY; lvc.font={bold:true};
+    ws.getCell(sr,7).value = lu;
+    ws.getCell(sr,8).value = rb;
+    const rvc = ws.getCell(sr,9); rvc.value = (rv==null||isNaN(rv))?null:rv; rvc.numFmt = FMT_DEC; rvc.fill = BOXGRAY; rvc.font={bold:true};
+    ws.getCell(sr,10).value = ru;
+    sr++;
+  });
+
+  ws.getColumn(1).width = 12;
+  for(let c=2;c<=9;c++) ws.getColumn(c).width = 14;
+
+  return wb;
+}
+async function exportMonthlySteamSummaryExcel(records, monthTag, kpi){
+  const wb = await buildMonthlySteamSummarySheet(records, monthTag, kpi);
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `boiler-monthly-summary-${monthTag}.xlsx`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function acctTitledSheet(titleTh, titleEn, header, rows, colWidths){
