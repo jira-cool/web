@@ -968,6 +968,16 @@ function boiler5CellStyle(styleId){
   return style;
 }
 
+// Checkbox squares (ปกติ/ไม่ปกติ, ปั๊ม 1-4 ฯลฯ) are drawn shapes in the source file,
+// not cell borders — ExcelJS can't replicate drawn shapes, so a bordered cell stands in for each one.
+const BOILER5_CHECKBOX_CELLS = [
+  [20,28],[20,30],[21,28],[21,30],[22,28],[22,30],[23,28],[23,30],
+  [31,25],[31,27],
+  [40,25],[40,27],[40,29],[40,31],
+  [41,25],[41,27],
+  [45,25],[45,27],
+];
+
 function buildBoiler5LogSheet(values){
   const t = BOILER5_LOG_TEMPLATE;
   const wb = new ExcelJS.Workbook();
@@ -981,7 +991,7 @@ function buildBoiler5LogSheet(values){
   const ps = t.pageSetup;
   ws.pageSetup = {
     paperSize: ps.paperSize,
-    orientation: ps.orientation,
+    orientation: 'landscape',
     fitToPage: true,
     fitToWidth: ps.fitToWidth,
     fitToHeight: ps.fitToHeight,
@@ -996,6 +1006,10 @@ function buildBoiler5LogSheet(values){
     if(v!=null) cell.value = v;
     cell.style = boiler5CellStyle(sid);
   }
+  const checkboxBorder = {style:'thin', color:{argb:'FF000000'}};
+  BOILER5_CHECKBOX_CELLS.forEach(([r,c])=>{
+    ws.getCell(r+1,c+1).border = {top:checkboxBorder, bottom:checkboxBorder, left:checkboxBorder, right:checkboxBorder};
+  });
   values.forEach(([r,c,v])=>{
     if(v==null || v==='') return;
     ws.getCell(r+1,c+1).value = v;
