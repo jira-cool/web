@@ -2144,7 +2144,11 @@ function resolvePalmTripCols(ws, anchorLabel){
       {weight:null, moisture:null},
     ];
   }
-  return Array.from({length:6},(_,i)=>({weight:colLetter(anchorIdx+2*i), moisture:colLetter(anchorIdx+2*i+1)}));
+  // บางเดือน (เช่น 0426) label แถว 3 อยู่ตรงคอลัมน์ "ความชื้นเที่ยว1" แทนที่จะเป็น "น้ำหนักเที่ยว1"
+  // จึงหาคอลัมน์ "น้ำหนักเที่ยว1" จริงใกล้ anchor แทนการอ้างอิง anchorIdx ตรงๆ กันคอลัมน์เลื่อน
+  const weight1Idx = findColIndex(ws, 'น้ำหนักเที่ยว1', Math.max(0,anchorIdx-2), anchorIdx+2);
+  const base = weight1Idx!=null ? weight1Idx : anchorIdx;
+  return Array.from({length:6},(_,i)=>({weight:colLetter(base+2*i), moisture:colLetter(base+2*i+1)}));
 }
 
 function importGetCell(ws, col, row){
