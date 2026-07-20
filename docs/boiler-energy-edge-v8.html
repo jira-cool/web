@@ -522,7 +522,7 @@ const CATEGORIES = [
 ];
 const WATER_METER_KEYS = CATEGORIES.find(c=>c.key==='water').fields.filter(f=>f.k!=='price').map(f=>f.k);
 
-const LOG_SHEET_NO5_TIMES = ['5:00','7:00','9:00','11:00','13:00','15:00','17:00','19:00','21:00','23:00','01:00','03:00'];
+const LOG_SHEET_NO5_TIMES = ['5:00'];
 // Fuel (L/R ton+Hz) is not collected here — when the Excel export for this sheet is
 // built, those columns must be filled with 0 instead of pulling from any field.
 const LOG_SHEET_NO5_HOURLY_FIELD_META = [
@@ -584,7 +584,7 @@ function emptyRecord(date){
   return {
     date,
     boiler:{
-      no5:{ fw:{meter:'',usage:''}, fuel:{left:'',right:''}, ash:{r1:'',r2:'',r3:'',r4:'',wetScrubber:''}, hours:{meter:'',usage:''}, blowdown:{t1:'',vs1:'',t2:'',vs2:'',t3:'',vs3:''}, hourly:Array.from({length:12},emptyNo5HourlyRow) },
+      no5:{ fw:{meter:'',usage:''}, fuel:{left:'',right:''}, ash:{r1:'',r2:'',r3:'',r4:'',wetScrubber:''}, hours:{meter:'',usage:''}, blowdown:{t1:'',vs1:'',t2:'',vs2:'',t3:'',vs3:''}, hourly:Array.from({length:1},emptyNo5HourlyRow) },
       no2:{ fw:{meter:'',usage:''}, fuel:{meter:'',usage:''}, hours:{meter:'',usage:''}, blowdown:{valveSec:'',timesPerDay:''} },
       no4:{ fw:{meter:'',usage:''}, fuel:{meter:'',usage:''}, hours:{meter:'',usage:''}, blowdown:{valveSec:'',timesPerDay:''} },
     },
@@ -968,7 +968,7 @@ async function showLogSheet(){
   if(no5SaveBtn){
     no5SaveBtn.onclick = async ()=>{
       const rec = await loadRecord(logSheetDate);
-      if(!rec.boiler.no5.hourly) rec.boiler.no5.hourly = Array.from({length:12},emptyNo5HourlyRow);
+      if(!rec.boiler.no5.hourly) rec.boiler.no5.hourly = Array.from({length:1},emptyNo5HourlyRow);
       area.querySelectorAll('.hourlyLog input[data-idx]').forEach(inp=>{
         const idx = Number(inp.dataset.idx);
         if(!rec.boiler.no5.hourly[idx]) rec.boiler.no5.hourly[idx] = emptyNo5HourlyRow();
