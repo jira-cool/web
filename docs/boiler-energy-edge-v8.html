@@ -243,6 +243,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   table.cost td{padding:9px 12px; border-bottom:1px solid var(--panel-line);}
   table.cost td.num{font-family:var(--mono); text-align:right;}
   table.cost tr.total td{font-weight:800; background:var(--amber-fill); border-top:2px solid var(--ember);}
+  table.hourlyLog{border-collapse:collapse; font-size:11px;}
+  table.hourlyLog th{background:#1c2622; color:#f4f1ea; padding:3px 2px; font-weight:600; text-align:center; white-space:nowrap;}
+  table.hourlyLog td{padding:2px; border:1px solid var(--panel-line); text-align:center;}
+  table.hourlyLog input{width:48px; box-sizing:border-box; padding:3px 2px; font-size:11px; text-align:center; border:1px solid var(--panel-line); border-radius:4px;}
   .month-block{margin-bottom:20px;}
   .month-title{font-size:15px; font-weight:800; color:var(--ink); margin-bottom:10px;}
   .missing-price{color:var(--ember); font-size:12px; font-weight:600;}
@@ -518,6 +522,20 @@ const CATEGORIES = [
 ];
 const WATER_METER_KEYS = CATEGORIES.find(c=>c.key==='water').fields.filter(f=>f.k!=='price').map(f=>f.k);
 
+const LOG_SHEET_NO5_TIMES = ['5:00','7:00','9:00','11:00','13:00','15:00','17:00','19:00','21:00','23:00','01:00','03:00'];
+const LOG_SHEET_NO5_HOURLY_FIELD_META = [
+  ['steamPressure',2],['fwTemp',2],['fwPressure',1],['fwMeterHourly',1],
+  ['diffPressureFurnace',1],['tempFurnaceA',1],['tempFurnaceB',1],
+  ['fuelLTon',1],['fuelLHz',1],['fuelRTon',1],['fuelRHz',1],
+  ['stepGrateL',1],['stepGrateR',1],['oxygen',1],['idFan',1],
+  ['fdFan1',1],['fdFan2',1],['tempStack',1],
+];
+function emptyNo5HourlyRow(){
+  const row = {};
+  LOG_SHEET_NO5_HOURLY_FIELD_META.forEach(([k])=> row[k]='');
+  return row;
+}
+
 let activeTab = CATEGORIES[0].key;
 let summarySubTab = 'daily';
 let summaryMonthlyMonth = null;
@@ -565,7 +583,7 @@ function emptyRecord(date){
   return {
     date,
     boiler:{
-      no5:{ fw:{meter:'',usage:''}, fuel:{left:'',right:''}, ash:{r1:'',r2:'',r3:'',r4:'',wetScrubber:''}, hours:{meter:'',usage:''}, blowdown:{t1:'',vs1:'',t2:'',vs2:'',t3:'',vs3:''} },
+      no5:{ fw:{meter:'',usage:''}, fuel:{left:'',right:''}, ash:{r1:'',r2:'',r3:'',r4:'',wetScrubber:''}, hours:{meter:'',usage:''}, blowdown:{t1:'',vs1:'',t2:'',vs2:'',t3:'',vs3:''}, hourly:Array.from({length:12},emptyNo5HourlyRow) },
       no2:{ fw:{meter:'',usage:''}, fuel:{meter:'',usage:''}, hours:{meter:'',usage:''}, blowdown:{valveSec:'',timesPerDay:''} },
       no4:{ fw:{meter:'',usage:''}, fuel:{meter:'',usage:''}, hours:{meter:'',usage:''}, blowdown:{valveSec:'',timesPerDay:''} },
     },
@@ -802,6 +820,71 @@ const LOG_SHEET_PAGES = [
 
 let logSheetDate = null;
 
+function buildLogSheetNo5HourlyTable(hourly){
+  const rows = LOG_SHEET_NO5_HOURLY_FIELD_META.map(([k])=>k);
+  let tbody = '';
+  LOG_SHEET_NO5_TIMES.forEach((t,i)=>{
+    const rowData = hourly[i] || {};
+    tbody += `<tr><td>${t}</td>`;
+    LOG_SHEET_NO5_HOURLY_FIELD_META.forEach(([k,span])=>{
+      tbody += `<td${span>1?` colspan="${span}"`:''}><input type="text" inputmode="decimal" data-idx="${i}" data-field="${k}" value="${rowData[k] ?? ''}"></td>`;
+    });
+    tbody += `</tr>`;
+  });
+  return `<div class="table-wrap"><table class="hourlyLog">
+    <thead>
+      <tr>
+        <th rowspan="4">เวลา</th>
+        <th rowspan="3" colspan="2">Steam<br>Pressure</th>
+        <th colspan="4">Feed Water</th>
+        <th colspan="7">Furnace /Fuel</th>
+        <th rowspan="2" colspan="2">Step grate</th>
+        <th rowspan="3">Oxygen</th>
+        <th rowspan="3">ID Fan</th>
+        <th rowspan="2" colspan="2">FD Fan</th>
+        <th rowspan="3">Temp Stack</th>
+      </tr>
+      <tr>
+        <th rowspan="2" colspan="2">Temp<br>Water</th>
+        <th rowspan="2">Pressure<br>Water</th>
+        <th rowspan="2">Meter<br>Feed Water</th>
+        <th rowspan="2">Diff Pressure<br>Furnace</th>
+        <th rowspan="2" colspan="2">Temp Furnace<br>(400-900°C)</th>
+        <th colspan="4">Fuel</th>
+      </tr>
+      <tr>
+        <th colspan="2">L</th>
+        <th colspan="2">R</th>
+        <th>L</th>
+        <th>R</th>
+        <th>FD Fan 1</th>
+        <th>FD Fan 2</th>
+      </tr>
+      <tr>
+        <th colspan="2">(6.5-7.5 Bar)</th>
+        <th colspan="2">(85-100°C)</th>
+        <th>(7-8 Bar)</th>
+        <th>m³</th>
+        <th>(-3-8 mmH2O)</th>
+        <th>A</th>
+        <th>B</th>
+        <th>ton</th>
+        <th>Hz</th>
+        <th>ton</th>
+        <th>Hz</th>
+        <th>Hz</th>
+        <th>Hz</th>
+        <th>%</th>
+        <th>Hz</th>
+        <th>Hz</th>
+        <th>Hz</th>
+        <th>(170-210°C)</th>
+      </tr>
+    </thead>
+    <tbody>${tbody}</tbody>
+  </table></div>`;
+}
+
 async function buildLogSheetNo5Html(dateStr, dateList){
   const rec = await loadRecord(dateStr);
   const b5 = rec.boiler?.no5 || {};
@@ -841,6 +924,10 @@ async function buildLogSheetNo5Html(dateStr, dateList){
         <div class="kpi-card"><div class="kpi-label">BD2</div><div class="kpi-value">${num(vs2,0)}<span class="kpi-unit">S/ครั้ง</span></div><div class="kpi-label" style="margin-top:4px;">ทุกๆ ${num(t2,0)} min</div></div>
         <div class="kpi-card"><div class="kpi-label">BD3</div><div class="kpi-value">${num(vs3,0)}<span class="kpi-unit">S/ครั้ง</span></div><div class="kpi-label" style="margin-top:4px;">ทุกๆ ${num(t3,0)} min</div></div>
       </div>
+    </div>
+    <div class="month-block"><div class="month-title">ตารางบันทึกค่าเครื่องทุก 2 ชม.</div>
+      ${buildLogSheetNo5HourlyTable(b5.hourly || [])}
+      <div style="margin-top:10px;"><button class="btn btn-primary" id="logSheetNo5SaveBtn">💾 บันทึก</button></div>
     </div>`;
 }
 
@@ -882,6 +969,21 @@ async function showLogSheet(){
   const dateSelect = document.getElementById('logSheetNo5DateSelect');
   if(dateSelect){
     dateSelect.onchange = (e)=>{ logSheetDate = e.target.value; showLogSheet(); };
+  }
+  const no5SaveBtn = document.getElementById('logSheetNo5SaveBtn');
+  if(no5SaveBtn){
+    no5SaveBtn.onclick = async ()=>{
+      const rec = await loadRecord(logSheetDate);
+      if(!rec.boiler.no5.hourly) rec.boiler.no5.hourly = Array.from({length:12},emptyNo5HourlyRow);
+      area.querySelectorAll('.hourlyLog input[data-idx]').forEach(inp=>{
+        const idx = Number(inp.dataset.idx);
+        if(!rec.boiler.no5.hourly[idx]) rec.boiler.no5.hourly[idx] = emptyNo5HourlyRow();
+        rec.boiler.no5.hourly[idx][inp.dataset.field] = inp.value;
+      });
+      await saveRecord(rec);
+      flashStatus('บันทึกแล้ว ✓');
+      showLogSheet();
+    };
   }
 }
 
