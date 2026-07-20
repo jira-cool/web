@@ -769,11 +769,6 @@ function sumMeterUsage(records, meterKey){
 function renderTabs(rec){
   const bar = document.getElementById('tabBar');
   bar.innerHTML = '';
-  const logBtn = document.createElement('button');
-  logBtn.className = 'tab-btn'+(activeTab==='__logsheet__' ? ' active':'');
-  logBtn.innerHTML = '<span class="dot" style="background:var(--steel)"></span><span>📋 ใบจดเครื่อง</span>';
-  logBtn.onclick = async ()=>{ activeTab='__logsheet__'; renderTabs(await loadRecord(currentDate)); showLogSheet(); };
-  bar.appendChild(logBtn);
   const sumBtn = document.createElement('button');
   sumBtn.className = 'tab-btn summary'+(activeTab==='__summary__' ? ' active':'');
   sumBtn.innerHTML = '<span class="dot" style="background:var(--steel)"></span><span>📊 Report</span>';
@@ -787,6 +782,11 @@ function renderTabs(rec){
     btn.onclick = ()=>{ activeTab = c.key; document.getElementById('summaryArea').style.display='none'; document.getElementById('logSheetArea').style.display='none'; document.getElementById('formArea').style.display='block'; refresh(); };
     bar.appendChild(btn);
   });
+  const logBtn = document.createElement('button');
+  logBtn.className = 'tab-btn'+(activeTab==='__logsheet__' ? ' active':'');
+  logBtn.innerHTML = '<span class="dot" style="background:var(--steel)"></span><span>📋 ใบจดเครื่อง</span>';
+  logBtn.onclick = async ()=>{ activeTab='__logsheet__'; renderTabs(await loadRecord(currentDate)); showLogSheet(); };
+  bar.appendChild(logBtn);
 }
 
 /* ---------------- log sheet ---------------- */
