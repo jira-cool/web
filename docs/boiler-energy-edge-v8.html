@@ -807,12 +807,7 @@ async function buildLogSheetNo5Html(dateStr, dateList){
   const b5 = rec.boiler?.no5 || {};
 
   const hoursBefore = await getPrevMeter('boiler.no5.hours.meter', dateStr);
-  const hoursAfter = parseFloat(b5.hours?.meter);
-  const hoursTotal = parseFloat(b5.hours?.usage);
-
   const fwBefore = await getPrevMeter('boiler.no5.fw.meter', dateStr);
-  const fwAfter = parseFloat(b5.fw?.meter);
-  const fwTotal = parseFloat(b5.fw?.usage);
 
   const bd = b5.blowdown || {};
   const bdVal = async (k)=>{
@@ -833,15 +828,11 @@ async function buildLogSheetNo5Html(dateStr, dateList){
     <div class="month-block" style="margin-top:14px;"><div class="month-title">1. จำนวนชั่วโมงทำงาน</div>
       <div class="kpi-row">
         <div class="kpi-card"><div class="kpi-label">ก่อน</div><div class="kpi-value">${num(hoursBefore)}<span class="kpi-unit">hr</span></div></div>
-        <div class="kpi-card"><div class="kpi-label">หลัง</div><div class="kpi-value">${num(hoursAfter)}<span class="kpi-unit">hr</span></div></div>
-        <div class="kpi-card"><div class="kpi-label">รวม</div><div class="kpi-value">${num(hoursTotal)}<span class="kpi-unit">hr/day</span></div></div>
       </div>
     </div>
     <div class="month-block"><div class="month-title">2. ปริมาณน้ำเติม Feed water</div>
       <div class="kpi-row">
         <div class="kpi-card"><div class="kpi-label">ก่อน</div><div class="kpi-value">${num(fwBefore)}<span class="kpi-unit">m³</span></div></div>
-        <div class="kpi-card"><div class="kpi-label">หลัง</div><div class="kpi-value">${num(fwAfter)}<span class="kpi-unit">m³</span></div></div>
-        <div class="kpi-card"><div class="kpi-label">รวม</div><div class="kpi-value">${num(fwTotal)}<span class="kpi-unit">m³/day</span></div></div>
       </div>
     </div>
     <div class="month-block"><div class="month-title">Auto Blowdown</div>
