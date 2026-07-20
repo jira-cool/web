@@ -244,11 +244,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="field"><label>ไฟล์ Excel (.xlsx)</label><input type="file" id="importFile" accept=".xlsx,.xlsm"></div>
           <div class="field"><label>ชื่อ Sheet</label><input type="text" id="importSheetName" value="0726"></div>
         </div>
+        <div class="field" style="margin-top:10px;"><label style="display:flex; align-items:center; gap:6px; font-weight:normal;"><input type="checkbox" id="importClearFirst" style="width:auto;">ล้างข้อมูลเดิมก่อน import (เฉพาะช่องที่ import นี้จัดการ)</label></div>
         <div class="actions" style="justify-content:flex-start; margin-top:10px;">
           <button class="btn btn-primary" id="importBtn">Importจากไฟล์ต้นทุนไอน้ำ</button>
         </div>
         <p class="note-line" id="importLog"></p>
-        <p class="note-line">หมายเหตุ: นำเข้าได้เฉพาะ Boiler no.5 (เชื้อเพลิง/ASH/ชั่วโมงทำงาน), Palm shell (เที่ยวชั่ง+ราคา), Electricity (Rate A/B/C) — ช่องอื่นต้องกรอกเอง / ตั้งค่า Blowdown ต้องกรอกเองเสมอ</p>
+        <p class="note-line">หมายเหตุ: นำเข้าได้เฉพาะ Boiler no.5 (เชื้อเพลิง/ASH/ชั่วโมงทำงาน), Palm shell (เที่ยวชั่ง+ราคา), Electricity (Rate A/B/C) — ช่องอื่นต้องกรอกเอง / ตั้งค่า Blowdown ต้องกรอกเองเสมอ / ถ้าติ๊ก "ล้างข้อมูลเดิมก่อน import" ช่องเหล่านี้ของวันที่มีในไฟล์จะถูกล้างเป็นค่าว่างก่อนเขียนค่าใหม่ทับ</p>
       </div>
       <div class="panel" id="importWaterPanel" style="margin-bottom:14px;">
         <h2>💧 นำเข้ามิเตอร์น้ำจาก Excel (การใช้น้ำประจำวัน)</h2>
@@ -2176,6 +2177,7 @@ function importFmtDate(d){
 async function handleExcelImport(){
   const fileInput = document.getElementById('importFile');
   const sheetNameInput = document.getElementById('importSheetName');
+  const clearFirst = document.getElementById('importClearFirst').checked;
   const logEl = document.getElementById('importLog');
   const file = fileInput.files[0];
   if(!file){ logEl.textContent = 'กรุณาเลือกไฟล์ Excel ก่อน'; return; }
@@ -2206,6 +2208,20 @@ async function handleExcelImport(){
     if(!dCell || !(dCell.v instanceof Date)) continue;
     const dateStr = importFmtDate(dCell.v);
     const rec = await loadRecord(dateStr);
+
+    if(clearFirst){
+      if(R.boilerNo5){
+        rec.boiler.no5.fuel.left=''; rec.boiler.no5.fuel.right='';
+        rec.boiler.no5.hours.meter=''; rec.boiler.no5.hours.usage='';
+      }
+      if(R.ash){ rec.boiler.no5.ash.r1=''; rec.boiler.no5.ash.r2=''; rec.boiler.no5.ash.r3=''; }
+      if(R.wetScrubber!=null) rec.boiler.no5.ash.wetScrubber='';
+      if(R.palmShellTrips && R.palmShellTrips.some(c=>c.supplierWeight!=null||c.companyWeight!=null)){
+        rec.palmShell.trips = Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''}));
+      }
+      rec.palmShell.price = '';
+      if(R.electricity){ rec.electricity.rateA=''; rec.electricity.rateB=''; rec.electricity.rateC=''; }
+    }
 
     if(R.boilerNo5){
       setCol(rec.boiler.no5.fuel,'left', R.boilerNo5.fuelLeft, row);
