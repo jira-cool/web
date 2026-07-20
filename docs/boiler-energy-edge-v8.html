@@ -1013,6 +1013,22 @@ async function renderForm(rec){
     });
   });
 
+  // Boiler: กรอกมิเตอร์ → คำนวณยอดใช้ให้อัตโนมัติ (ทางเดียว ไม่มีการแจ้งเตือน)
+  document.querySelectorAll('.field-pair[data-prev]').forEach(pair=>{
+    const meterInput = pair.querySelector('input[data-role="meter"][data-cat="boiler"]');
+    const usageInput = pair.querySelector('input[data-role="usage"][data-cat="boiler"]');
+    if(!meterInput || !usageInput) return;
+    const prevRaw = pair.dataset.prev;
+    const prev = prevRaw==='' ? null : parseFloat(prevRaw);
+    if(prev==null) return;
+
+    meterInput.addEventListener('input', ()=>{
+      if(meterInput.value==='') return;
+      const m = parseFloat(meterInput.value);
+      if(!isNaN(m)) usageInput.value = (m-prev).toFixed(2);
+    });
+  });
+
   const elecGroup = document.getElementById('electricityGroup');
   if(elecGroup){
     elecGroup.addEventListener('paste', (e)=>{
