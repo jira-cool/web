@@ -523,10 +523,11 @@ const CATEGORIES = [
 const WATER_METER_KEYS = CATEGORIES.find(c=>c.key==='water').fields.filter(f=>f.k!=='price').map(f=>f.k);
 
 const LOG_SHEET_NO5_TIMES = ['5:00','7:00','9:00','11:00','13:00','15:00','17:00','19:00','21:00','23:00','01:00','03:00'];
+// Fuel (L/R ton+Hz) is not collected here — when the Excel export for this sheet is
+// built, those columns must be filled with 0 instead of pulling from any field.
 const LOG_SHEET_NO5_HOURLY_FIELD_META = [
   ['steamPressure',2],['fwTemp',2],['fwPressure',1],['fwMeterHourly',1],
   ['diffPressureFurnace',1],['tempFurnaceA',1],['tempFurnaceB',1],
-  ['fuelLTon',1],['fuelLHz',1],['fuelRTon',1],['fuelRHz',1],
   ['stepGrateL',1],['stepGrateR',1],['oxygen',1],['idFan',1],
   ['fdFan1',1],['fdFan2',1],['tempStack',1],
 ];
@@ -837,7 +838,7 @@ function buildLogSheetNo5HourlyTable(hourly){
         <th rowspan="4">เวลา</th>
         <th rowspan="3" colspan="2">Steam<br>Pressure</th>
         <th colspan="4">Feed Water</th>
-        <th colspan="7">Furnace /Fuel</th>
+        <th colspan="3">Furnace /Fuel</th>
         <th rowspan="2" colspan="2">Step grate</th>
         <th rowspan="3">Oxygen</th>
         <th rowspan="3">ID Fan</th>
@@ -850,11 +851,8 @@ function buildLogSheetNo5HourlyTable(hourly){
         <th rowspan="2">Meter<br>Feed Water</th>
         <th rowspan="2">Diff Pressure<br>Furnace</th>
         <th rowspan="2" colspan="2">Temp Furnace<br>(400-900°C)</th>
-        <th colspan="4">Fuel</th>
       </tr>
       <tr>
-        <th colspan="2">L</th>
-        <th colspan="2">R</th>
         <th>L</th>
         <th>R</th>
         <th>FD Fan 1</th>
@@ -868,10 +866,6 @@ function buildLogSheetNo5HourlyTable(hourly){
         <th>(-3-8 mmH2O)</th>
         <th>A</th>
         <th>B</th>
-        <th>ton</th>
-        <th>Hz</th>
-        <th>ton</th>
-        <th>Hz</th>
         <th>Hz</th>
         <th>Hz</th>
         <th>%</th>
