@@ -243,6 +243,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   table.cost td{padding:9px 12px; border-bottom:1px solid var(--panel-line);}
   table.cost td.num{font-family:var(--mono); text-align:right;}
   table.cost tr.total td{font-weight:800; background:var(--amber-fill); border-top:2px solid var(--ember);}
+  table.hourlyLog{border-collapse:collapse; font-size:11px;}
+  table.hourlyLog th{background:#1c2622; color:#f4f1ea; padding:3px 2px; font-weight:600; text-align:center; white-space:nowrap;}
+  table.hourlyLog td{padding:2px; border:1px solid var(--panel-line); text-align:center;}
+  table.hourlyLog input{width:48px; box-sizing:border-box; padding:3px 2px; font-size:11px; text-align:center; border:1px solid var(--panel-line); border-radius:4px;}
   .month-block{margin-bottom:20px;}
   .month-title{font-size:15px; font-weight:800; color:var(--ink); margin-bottom:10px;}
   .missing-price{color:var(--ember); font-size:12px; font-weight:600;}
@@ -518,6 +522,20 @@ const CATEGORIES = [
 ];
 const WATER_METER_KEYS = CATEGORIES.find(c=>c.key==='water').fields.filter(f=>f.k!=='price').map(f=>f.k);
 
+const LOG_SHEET_NO5_TIMES = ['5:00','7:00','9:00','11:00','13:00','15:00','17:00','19:00','21:00','23:00','01:00','03:00'];
+const LOG_SHEET_NO5_HOURLY_FIELD_META = [
+  ['steamPressure',2],['fwTemp',2],['fwPressure',1],['fwMeterHourly',1],
+  ['diffPressureFurnace',1],['tempFurnaceA',1],['tempFurnaceB',1],
+  ['fuelLTon',1],['fuelLHz',1],['fuelRTon',1],['fuelRHz',1],
+  ['stepGrateL',1],['stepGrateR',1],['oxygen',1],['idFan',1],
+  ['fdFan1',1],['fdFan2',1],['tempStack',1],
+];
+function emptyNo5HourlyRow(){
+  const row = {};
+  LOG_SHEET_NO5_HOURLY_FIELD_META.forEach(([k])=> row[k]='');
+  return row;
+}
+
 let activeTab = CATEGORIES[0].key;
 let summarySubTab = 'daily';
 let summaryMonthlyMonth = null;
@@ -565,7 +583,7 @@ function emptyRecord(date){
   return {
     date,
     boiler:{
-      no5:{ fw:{meter:'',usage:''}, fuel:{left:'',right:''}, ash:{r1:'',r2:'',r3:'',r4:'',wetScrubber:''}, hours:{meter:'',usage:''}, blowdown:{t1:'',vs1:'',t2:'',vs2:'',t3:'',vs3:''} },
+      no5:{ fw:{meter:'',usage:''}, fuel:{left:'',right:''}, ash:{r1:'',r2:'',r3:'',r4:'',wetScrubber:''}, hours:{meter:'',usage:''}, blowdown:{t1:'',vs1:'',t2:'',vs2:'',t3:'',vs3:''}, hourly:Array.from({length:12},emptyNo5HourlyRow) },
       no2:{ fw:{meter:'',usage:''}, fuel:{meter:'',usage:''}, hours:{meter:'',usage:''}, blowdown:{valveSec:'',timesPerDay:''} },
       no4:{ fw:{meter:'',usage:''}, fuel:{meter:'',usage:''}, hours:{meter:'',usage:''}, blowdown:{valveSec:'',timesPerDay:''} },
     },
@@ -800,7 +818,120 @@ const LOG_SHEET_PAGES = [
   { key:'gas', label:'การใช้แก๊ส' },
 ];
 
-function showLogSheet(){
+let logSheetDate = null;
+
+function buildLogSheetNo5HourlyTable(hourly){
+  const rows = LOG_SHEET_NO5_HOURLY_FIELD_META.map(([k])=>k);
+  let tbody = '';
+  LOG_SHEET_NO5_TIMES.forEach((t,i)=>{
+    const rowData = hourly[i] || {};
+    tbody += `<tr><td>${t}</td>`;
+    LOG_SHEET_NO5_HOURLY_FIELD_META.forEach(([k,span])=>{
+      tbody += `<td${span>1?` colspan="${span}"`:''}><input type="text" inputmode="decimal" data-idx="${i}" data-field="${k}" value="${rowData[k] ?? ''}"></td>`;
+    });
+    tbody += `</tr>`;
+  });
+  return `<div class="table-wrap"><table class="hourlyLog">
+    <thead>
+      <tr>
+        <th rowspan="4">เวลา</th>
+        <th rowspan="3" colspan="2">Steam<br>Pressure</th>
+        <th colspan="4">Feed Water</th>
+        <th colspan="7">Furnace /Fuel</th>
+        <th rowspan="2" colspan="2">Step grate</th>
+        <th rowspan="3">Oxygen</th>
+        <th rowspan="3">ID Fan</th>
+        <th rowspan="2" colspan="2">FD Fan</th>
+        <th rowspan="3">Temp Stack</th>
+      </tr>
+      <tr>
+        <th rowspan="2" colspan="2">Temp<br>Water</th>
+        <th rowspan="2">Pressure<br>Water</th>
+        <th rowspan="2">Meter<br>Feed Water</th>
+        <th rowspan="2">Diff Pressure<br>Furnace</th>
+        <th rowspan="2" colspan="2">Temp Furnace<br>(400-900°C)</th>
+        <th colspan="4">Fuel</th>
+      </tr>
+      <tr>
+        <th colspan="2">L</th>
+        <th colspan="2">R</th>
+        <th>L</th>
+        <th>R</th>
+        <th>FD Fan 1</th>
+        <th>FD Fan 2</th>
+      </tr>
+      <tr>
+        <th colspan="2">(6.5-7.5 Bar)</th>
+        <th colspan="2">(85-100°C)</th>
+        <th>(7-8 Bar)</th>
+        <th>m³</th>
+        <th>(-3-8 mmH2O)</th>
+        <th>A</th>
+        <th>B</th>
+        <th>ton</th>
+        <th>Hz</th>
+        <th>ton</th>
+        <th>Hz</th>
+        <th>Hz</th>
+        <th>Hz</th>
+        <th>%</th>
+        <th>Hz</th>
+        <th>Hz</th>
+        <th>Hz</th>
+        <th>(170-210°C)</th>
+      </tr>
+    </thead>
+    <tbody>${tbody}</tbody>
+  </table></div>`;
+}
+
+async function buildLogSheetNo5Html(dateStr, dateList){
+  const rec = await loadRecord(dateStr);
+  const b5 = rec.boiler?.no5 || {};
+
+  const hoursBefore = await getPrevMeter('boiler.no5.hours.meter', dateStr);
+  const fwBefore = await getPrevMeter('boiler.no5.fw.meter', dateStr);
+
+  const bd = b5.blowdown || {};
+  const bdVal = async (k)=>{
+    const v = parseFloat(bd[k]);
+    if(!isNaN(v)) return v;
+    const sticky = parseFloat(await getSticky(`boiler.no5.blowdown.${k}`, dateStr));
+    return isNaN(sticky) ? null : sticky;
+  };
+  const vs1 = await bdVal('vs1'), t1 = await bdVal('t1');
+  const vs2 = await bdVal('vs2'), t2 = await bdVal('t2');
+  const vs3 = await bdVal('vs3'), t3 = await bdVal('t3');
+
+  const dateOptions = dateList.map(d=>`<option value="${d}"${d===dateStr?' selected':''}>${d.split('-').reverse().join('-')}</option>`).join('');
+
+  return `<div class="field" style="max-width:220px;"><label>วันที่</label>
+      <select id="logSheetNo5DateSelect">${dateOptions}</select>
+    </div>
+    <div class="month-block" style="margin-top:14px;"><div class="month-title">1. จำนวนชั่วโมงทำงาน</div>
+      <div class="kpi-row">
+        <div class="kpi-card"><div class="kpi-label">ก่อน</div><div class="kpi-value">${num(hoursBefore)}<span class="kpi-unit">hr</span></div></div>
+      </div>
+    </div>
+    <div class="month-block"><div class="month-title">2. ปริมาณน้ำเติม Feed water</div>
+      <div class="kpi-row">
+        <div class="kpi-card"><div class="kpi-label">ก่อน</div><div class="kpi-value">${num(fwBefore)}<span class="kpi-unit">m³</span></div></div>
+      </div>
+    </div>
+    <div class="month-block"><div class="month-title">Auto Blowdown</div>
+      <div class="kpi-row">
+        <div class="kpi-card"><div class="kpi-label">BD1</div><div class="kpi-value">${num(vs1,0)}<span class="kpi-unit">S/ครั้ง</span></div><div class="kpi-label" style="margin-top:4px;">ทุกๆ ${num(t1,0)} min</div></div>
+        <div class="kpi-card"><div class="kpi-label">BD2</div><div class="kpi-value">${num(vs2,0)}<span class="kpi-unit">S/ครั้ง</span></div><div class="kpi-label" style="margin-top:4px;">ทุกๆ ${num(t2,0)} min</div></div>
+        <div class="kpi-card"><div class="kpi-label">BD3</div><div class="kpi-value">${num(vs3,0)}<span class="kpi-unit">S/ครั้ง</span></div><div class="kpi-label" style="margin-top:4px;">ทุกๆ ${num(t3,0)} min</div></div>
+      </div>
+    </div>
+    <div class="month-block"><div class="month-title">ตารางบันทึกค่าเครื่องทุก 2 ชม.</div>
+      ${buildLogSheetNo5HourlyTable(b5.hourly || [])}
+      <div style="margin-top:10px;"><button class="btn btn-primary" id="logSheetNo5SaveBtn">💾 บันทึก</button></div>
+    </div>`;
+}
+
+async function showLogSheet(){
   document.getElementById('formArea').style.display='none';
   document.getElementById('summaryArea').style.display='none';
   const area = document.getElementById('logSheetArea');
@@ -811,12 +942,22 @@ function showLogSheet(){
   ).join('')}</div>`;
   const page = LOG_SHEET_PAGES.find(p=>p.key===logSheetSubTab) || LOG_SHEET_PAGES[0];
 
+  let contentHtml = `<div class="empty-state">ฟอร์มของหน้านี้ยังไม่ได้กำหนด — รอรายละเอียดเพิ่มเติม</div>`;
+  if(page.key==='no5'){
+    const allDates = await listAllDates();
+    const dateList = allDates.length ? allDates : [currentDate];
+    if(!logSheetDate || !dateList.includes(logSheetDate)){
+      logSheetDate = dateList.includes(currentDate) ? currentDate : dateList[dateList.length-1];
+    }
+    contentHtml = await buildLogSheetNo5Html(logSheetDate, dateList);
+  }
+
   area.innerHTML = `<div class="panel"><h2>📋 ใบจดเครื่อง</h2>${subtabsHtml}
     <div class="summary-toolbar" style="margin-top:14px;">
       <div class="month-title" style="margin:0;">${page.label}</div>
       <button class="btn btn-primary" id="exportLogSheetBtn">⬇ ส่งออกเป็น Excel (.xlsx)</button>
     </div>
-    <div class="empty-state">ฟอร์มของหน้านี้ยังไม่ได้กำหนด — รอรายละเอียดเพิ่มเติม</div>
+    ${contentHtml}
   </div>`;
 
   area.querySelectorAll('.subtab-btn').forEach(b=>{
@@ -825,6 +966,25 @@ function showLogSheet(){
   document.getElementById('exportLogSheetBtn').onclick = ()=>{
     alert('ฟีเจอร์ export ของหน้านี้ยังไม่ได้ตั้งค่า รอรายละเอียดฟอร์มเพิ่มเติม');
   };
+  const dateSelect = document.getElementById('logSheetNo5DateSelect');
+  if(dateSelect){
+    dateSelect.onchange = (e)=>{ logSheetDate = e.target.value; showLogSheet(); };
+  }
+  const no5SaveBtn = document.getElementById('logSheetNo5SaveBtn');
+  if(no5SaveBtn){
+    no5SaveBtn.onclick = async ()=>{
+      const rec = await loadRecord(logSheetDate);
+      if(!rec.boiler.no5.hourly) rec.boiler.no5.hourly = Array.from({length:12},emptyNo5HourlyRow);
+      area.querySelectorAll('.hourlyLog input[data-idx]').forEach(inp=>{
+        const idx = Number(inp.dataset.idx);
+        if(!rec.boiler.no5.hourly[idx]) rec.boiler.no5.hourly[idx] = emptyNo5HourlyRow();
+        rec.boiler.no5.hourly[idx][inp.dataset.field] = inp.value;
+      });
+      await saveRecord(rec);
+      flashStatus('บันทึกแล้ว ✓');
+      showLogSheet();
+    };
+  }
 }
 
 /* ---------------- field renderers ---------------- */
