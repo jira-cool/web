@@ -2126,11 +2126,51 @@ function utilityExcelDateFromSerial(serial){
 // เดือน/ปีภาษาอังกฤษ ใช้แทนข้อความ "April"/"2026" ในหัวตารางต้นแบบ ให้ตรงกับเดือนที่ export จริง
 const UTILITY_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+// ความยาวข้อความที่จะแสดงจริงของเซลล์ (ใช้ประมาณความกว้างคอลัมน์แบบ auto fit)
+function utilityCellDisplayLength(cell){
+  const v = cell.value;
+  if(v==null || v==='') return 0;
+  if(v instanceof Date) return 10; // dd/mm/yyyy
+  if(typeof v==='number'){
+    let s = (cell.numFmt && cell.numFmt.includes('0.00')) ? v.toFixed(2) : String(Math.round(v));
+    if(cell.numFmt && cell.numFmt.includes('#,##0')) s = Number(s).toLocaleString('en-US');
+    return s.length;
+  }
+  if(v && v.richText) return v.richText.map(rt=>rt.text).join('').length;
+  return String(v).length;
+}
+// ปรับความกว้างคอลัมน์ให้พอดีกับเนื้อหาจริงในชีต (คล้าย Auto Fit Column Width ของ Excel)
+// ใช้ความกว้างจริงจากไฟล์ต้นฉบับ (t.colWidths) เป็นค่าต่ำสุด แล้วขยายเพิ่มถ้าหัวตาราง/ข้อมูลรายวันต้องการพื้นที่มากกว่านั้น
+// ไม่นับ merged cell (หัวตารางที่ merge หลายคอลัมน์ไม่ควรบังคับให้แต่ละคอลัมน์กว้างตาม) และไม่นับแถวหัวเรื่อง/แถวรอง กับแถวสรุปท้ายตาราง (ตัวหนังสือยาวเกินความกว้างจริงของตารางโดยตั้งใจ overflow ทับคอลัมน์ว่างข้างๆ)
+function utilityAutofitColumns(ws, t, minWidth, maxWidth){
+  minWidth = minWidth || 6; maxWidth = maxWidth || 40;
+  const dateCol = t.dateCol+1;
+  let lastDataRow = 0;
+  ws.eachRow({includeEmpty:true}, row=>{
+    if(row.getCell(dateCol).value instanceof Date) lastDataRow = row.number;
+  });
+  const firstHeaderRow = 3; // ข้ามแถบหัวเรื่อง/แถวรองบนสุด (แถว 1-2) ที่ตัวหนังสือยาว overflow ข้ามคอลัมน์โดยตั้งใจ
+  const colNeed = {};
+  ws.eachRow({includeEmpty:true}, row=>{
+    if(row.number<firstHeaderRow || (lastDataRow>0 && row.number>lastDataRow)) return;
+    row.eachCell({includeEmpty:true}, cell=>{
+      if(cell.isMerged) return;
+      const len = utilityCellDisplayLength(cell);
+      if(len===0) return;
+      colNeed[cell.col] = Math.max(colNeed[cell.col]||0, len);
+    });
+  });
+  for(let c=1;c<=ws.columnCount;c++){
+    const base = (t.colWidths && t.colWidths[c-1]!=null) ? t.colWidths[c-1] : minWidth;
+    const need = colNeed[c] ? colNeed[c]+2 : 0;
+    ws.getColumn(c).width = Math.min(Math.max(base, need, minWidth), maxWidth);
+  }
+}
+
 // สร้าง worksheet 1 ชีตจากแม่แบบ + ข้อมูลจริงของเดือนที่เลือก (rowDataFn คืนค่า {colIndex0based: value} ต่อวัน)
 function buildUtilitySheet(wb, tmplKey, monthDates, monthTag, rowDataFn){
   const t = UTILITY_EXPORT_TEMPLATE.sheets[tmplKey];
   const ws = wb.addWorksheet(t.sheetName);
-  for(let c=0;c<t.ncols;c++) ws.getColumn(c+1).width = (t.colWidths && t.colWidths[c]!=null) ? t.colWidths[c] : 10;
   const [yy,mm] = monthTag.split('-');
   const monthName = UTILITY_MONTH_NAMES[parseInt(mm,10)-1];
   const baselineDays = t.dataEnd - t.dataStart + 1;
@@ -2178,6 +2218,7 @@ function buildUtilitySheet(wb, tmplKey, monthDates, monthTag, rowDataFn){
       if(styleId!=null) ws.getCell(rowIdx+1,c+1).style = utilityCellStyle(styleId);
     }
   }
+  utilityAutofitColumns(ws, t);
   return ws;
 }
 
