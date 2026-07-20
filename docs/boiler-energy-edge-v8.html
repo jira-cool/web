@@ -249,7 +249,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <button class="btn btn-primary" id="importBtn">Importจากไฟล์ต้นทุนไอน้ำ</button>
         </div>
         <p class="note-line" id="importLog"></p>
-        <p class="note-line">หมายเหตุ: นำเข้าได้เฉพาะ Boiler no.5 (เชื้อเพลิง/ASH/ชั่วโมงทำงาน), Palm shell (เที่ยวชั่ง+ราคา), Electricity (Rate A/B/C) — ช่องอื่นต้องกรอกเอง / ตั้งค่า Blowdown ต้องกรอกเองเสมอ / ถ้าติ๊ก "ล้างข้อมูลเดิมก่อน import" ช่องเหล่านี้ของวันที่มีในไฟล์จะถูกล้างเป็นค่าว่างก่อนเขียนค่าใหม่ทับ โดยจะล้าง+นำเข้าเฉพาะแถวที่วันที่ตรงกับเดือนตามชื่อ sheet (รูปแบบ MMYY เช่น 0426) เท่านั้น แถวที่วันที่หลงเดือนอื่นจะถูกข้าม</p>
+        <p class="note-line">หมายเหตุ: นำเข้าได้เฉพาะ Boiler no.5 (เชื้อเพลิง/ASH/ชั่วโมงทำงาน), Palm shell (เที่ยวชั่ง+ราคา), Electricity (Rate A/B/C) — ช่องอื่นต้องกรอกเอง / ตั้งค่า Blowdown ต้องกรอกเองเสมอ / ถ้าติ๊ก "ล้างข้อมูลเดิมก่อน import" ช่องเหล่านี้ของวันที่มีในไฟล์จะถูกล้างเป็นค่าว่างก่อนเขียนค่าใหม่ทับ โดยจะล้าง+นำเข้าเฉพาะแถวที่วันที่ตรงกับเดือนตามชื่อ sheet (รูปแบบ MMYY เช่น 0426) เท่านั้น แถวที่วันที่หลงเดือนอื่นจะถูกข้าม / เดือนที่ไฟล์มีเชื้อเพลิง Boiler no.5 เป็นค่ารวมไม่แยกซ้าย-ขวา (0326-0626) จะไม่นำเข้าช่องห้องเผาซ้าย-ขวา ให้ใช้ Importจากไฟล์Utility แทนสำหรับข้อมูลนี้</p>
       </div>
       <div class="panel" id="importWaterPanel" style="margin-bottom:14px;">
         <h2>💧 นำเข้ามิเตอร์น้ำจาก Excel (การใช้น้ำประจำวัน)</h2>
@@ -2105,11 +2105,11 @@ function resolveSteamCostColumns(ws){
         fuelLeft: colLetter(m41Idx), fuelRight: colLetter(m41Idx+1),
       };
     } else {
-      // โครงสร้างเก่า (0326-0626): มีแค่ชม.รวมค่าเดียว และเชื้อเพลิงรวมค่าเดียว (ไม่แยก)
-      const fuelIdx = findColIndex(ws, 'kg./day', b5Idx, b5Idx+8);
+      // โครงสร้างเก่า (0326-0626): มีแค่ชม.รวมค่าเดียว และเชื้อเพลิงรวมค่าเดียว (ไม่แยกซ้าย-ขวา)
+      // ไม่นำค่ารวมนี้ไปใส่ช่องซ้าย/ขวา เพราะไม่ใช่ข้อมูลเฉพาะฝั่งจริง — ให้ import ไฟล์ Utility (มีแยกซ้าย-ขวาจริง) แทน
       R.boilerNo5 = {
         hoursMeter: null, hoursUsage: colLetter(b5Idx),
-        fuelLeft: colLetter(fuelIdx), fuelRight: null,
+        fuelLeft: null, fuelRight: null,
       };
     }
   }
