@@ -244,11 +244,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="field"><label>ไฟล์ Excel (.xlsx)</label><input type="file" id="importFile" accept=".xlsx,.xlsm"></div>
           <div class="field"><label>ชื่อ Sheet</label><input type="text" id="importSheetName" value="0726"></div>
         </div>
+        <div class="field" style="margin-top:10px;"><label style="display:flex; align-items:center; gap:6px; font-weight:normal;"><input type="checkbox" id="importClearFirst" style="width:auto;">ล้างข้อมูลเดิมก่อน import (เฉพาะช่องที่ import นี้จัดการ)</label></div>
         <div class="actions" style="justify-content:flex-start; margin-top:10px;">
           <button class="btn btn-primary" id="importBtn">Importจากไฟล์ต้นทุนไอน้ำ</button>
         </div>
         <p class="note-line" id="importLog"></p>
-        <p class="note-line">หมายเหตุ: นำเข้าได้เฉพาะ Boiler no.5 (เชื้อเพลิง/ASH/ชั่วโมงทำงาน), Palm shell (เที่ยวชั่ง+ราคา), Electricity (Rate A/B/C) — ช่องอื่นต้องกรอกเอง / ตั้งค่า Blowdown ต้องกรอกเองเสมอ</p>
+        <p class="note-line">หมายเหตุ: นำเข้าได้เฉพาะ Boiler no.5 (เชื้อเพลิง/ASH/ชั่วโมงทำงาน), Palm shell (เที่ยวชั่ง+ราคา), Electricity (Rate A/B/C) — ช่องอื่นต้องกรอกเอง / ตั้งค่า Blowdown ต้องกรอกเองเสมอ / ถ้าติ๊ก "ล้างข้อมูลเดิมก่อน import" ช่องเหล่านี้ของวันที่มีในไฟล์จะถูกล้างเป็นค่าว่างก่อนเขียนค่าใหม่ทับ โดยจะล้าง+นำเข้าเฉพาะแถวที่วันที่ตรงกับเดือนตามชื่อ sheet (รูปแบบ MMYY เช่น 0426) เท่านั้น แถวที่วันที่หลงเดือนอื่นจะถูกข้าม</p>
       </div>
       <div class="panel" id="importWaterPanel" style="margin-bottom:14px;">
         <h2>💧 นำเข้ามิเตอร์น้ำจาก Excel (การใช้น้ำประจำวัน)</h2>
@@ -2073,6 +2074,15 @@ function cellTextAt(ws, colIdx){
 }
 function colLetter(idx){ return idx==null ? null : XLSX.utils.encode_col(idx); }
 
+// แปลงชื่อ sheet รูปแบบ MMYY (เช่น "0426" = เดือน 4 ปี 2026) เป็น {year,month} ใช้ตรวจสอบวันที่ก่อนล้างข้อมูล
+function parseSheetMonth(sheetName){
+  const m = sheetName.match(/^(\d{2})(\d{2})$/);
+  if(!m) return null;
+  const month = parseInt(m[1],10), yy = parseInt(m[2],10);
+  if(month<1 || month>12) return null;
+  return {year: 2000+yy, month};
+}
+
 // วิเคราะห์ header ของ sheet ต้นทุนไอน้ำ (row 1-5) หา column ของแต่ละ field
 // เพราะตำแหน่งคอลัมน์ขยับไปทุกเดือน (0326-0626) ตามจำนวนคอลัมน์ที่เพิ่มขึ้นเรื่อยๆ
 function resolveSteamCostColumns(ws){
@@ -2176,6 +2186,7 @@ function importFmtDate(d){
 async function handleExcelImport(){
   const fileInput = document.getElementById('importFile');
   const sheetNameInput = document.getElementById('importSheetName');
+  const clearFirst = document.getElementById('importClearFirst').checked;
   const logEl = document.getElementById('importLog');
   const file = fileInput.files[0];
   if(!file){ logEl.textContent = 'กรุณาเลือกไฟล์ Excel ก่อน'; return; }
@@ -2199,13 +2210,37 @@ async function handleExcelImport(){
 
   const R = resolveSteamCostColumns(ws);
   const setCol = (obj,key,c,row)=>{ if(c!=null) importSetIf(obj,key,importGetCell(ws,c,row)); };
+  const expectedMonth = clearFirst ? parseSheetMonth(sheetName) : null;
 
-  let imported=0;
+  let imported=0, skippedOutOfMonth=0;
   for(let row=5; row<=60; row++){
     const dCell = ws['A'+row];
     if(!dCell || !(dCell.v instanceof Date)) continue;
     const dateStr = importFmtDate(dCell.v);
+
+    if(expectedMonth){
+      const [yStr,mStr] = dateStr.split('-');
+      if(parseInt(yStr,10)!==expectedMonth.year || parseInt(mStr,10)!==expectedMonth.month){
+        skippedOutOfMonth++;
+        continue;
+      }
+    }
+
     const rec = await loadRecord(dateStr);
+
+    if(clearFirst){
+      if(R.boilerNo5){
+        rec.boiler.no5.fuel.left=''; rec.boiler.no5.fuel.right='';
+        rec.boiler.no5.hours.meter=''; rec.boiler.no5.hours.usage='';
+      }
+      if(R.ash){ rec.boiler.no5.ash.r1=''; rec.boiler.no5.ash.r2=''; rec.boiler.no5.ash.r3=''; }
+      if(R.wetScrubber!=null) rec.boiler.no5.ash.wetScrubber='';
+      if(R.palmShellTrips && R.palmShellTrips.some(c=>c.supplierWeight!=null||c.companyWeight!=null)){
+        rec.palmShell.trips = Array.from({length:6},()=>({supplierWeight:'',supplierMoisture:'',companyWeight:'',companyMoisture:''}));
+      }
+      rec.palmShell.price = '';
+      if(R.electricity){ rec.electricity.rateA=''; rec.electricity.rateB=''; rec.electricity.rateC=''; }
+    }
 
     if(R.boilerNo5){
       setCol(rec.boiler.no5.fuel,'left', R.boilerNo5.fuelLeft, row);
@@ -2246,9 +2281,10 @@ async function handleExcelImport(){
   allDatesCache = null;
   stockCardCache = null;
   palmStockCardCache = null;
+  const skipNote = skippedOutOfMonth>0 ? ` (ข้าม ${skippedOutOfMonth} แถวที่วันที่ไม่ตรงเดือนของ sheet)` : '';
   logEl.textContent = imported>0
-    ? `นำเข้าข้อมูลสำเร็จ ${imported} วัน จาก sheet "${sheetName}" — เลือกวันที่ด้านบนเพื่อตรวจสอบ`
-    : `ไม่พบแถวข้อมูลรายวันใน sheet "${sheetName}" (ตรวจสอบว่าคอลัมน์ A เป็นวันที่ตั้งแต่แถวที่ 5)`;
+    ? `นำเข้าข้อมูลสำเร็จ ${imported} วัน จาก sheet "${sheetName}"${skipNote} — เลือกวันที่ด้านบนเพื่อตรวจสอบ`
+    : `ไม่พบแถวข้อมูลรายวันใน sheet "${sheetName}" (ตรวจสอบว่าคอลัมน์ A เป็นวันที่ตั้งแต่แถวที่ 5)${skipNote}`;
   await refresh();
 }
 document.getElementById('importBtn').addEventListener('click', handleExcelImport);
