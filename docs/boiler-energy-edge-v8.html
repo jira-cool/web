@@ -1143,12 +1143,13 @@ function fieldHTML(catKey, groupPath, k, label, unit, value, stickyMode){
   </div>`;
 }
 
-function dualFieldHTML(catKey, groupPath, f, curVal, prev, prevUsage, usageReadOnly){
+function dualFieldHTML(catKey, groupPath, f, curVal, prev, prevUsage, usageReadOnly, showPrevUsageHint){
   const meterLabel = f.meterLabel || 'มิเตอร์ปัจจุบัน';
   const usageLabel = f.usageLabel || 'ปริมาณการใช้';
   const prevLabel = prev==null ? 'ไม่มีข้อมูลก่อนหน้า' : prev;
+  const prevUsageHint = showPrevUsageHint ? `<span class="prev-hint">ใช้เมื่อวาน: ${prevUsage==null ? 'ไม่มีข้อมูล' : prevUsage}</span>` : '';
   return `<div class="field-pair" data-prev="${prev==null?'':prev}" data-prev-usage="${prevUsage==null?'':prevUsage}">
-    <div class="pair-label">${f.label}${f.unit?` <span class="unit">(${f.unit})</span>`:''}<span class="prev-hint">ก่อนหน้า: ${prevLabel}</span></div>
+    <div class="pair-label">${f.label}${f.unit?` <span class="unit">(${f.unit})</span>`:''}<span class="prev-hint">ก่อนหน้า: ${prevLabel}</span>${prevUsageHint}</div>
     <div class="dual-grid">
       <div class="field"><label>${meterLabel}</label>
         <input type="text" inputmode="decimal" data-cat="${catKey}" data-path="${groupPath}" data-key="${f.k}" data-role="meter" value="${curVal.meter ?? ''}"></div>
@@ -1364,9 +1365,9 @@ async function renderForm(rec){
       if(f.k==='price') continue;
       const path = `water.${f.k}.meter`;
       const prev = await getPrevMeter(path, rec.date);
-      const prevUsage = await getPrevMeter(`water.${f.k}.usage`, shiftDateStr(rec.date,-1));
+      const prevUsage = await getPrevMeter(`water.${f.k}.usage`, rec.date);
       const curVal = rec.water?.[f.k] || {};
-      html += dualFieldHTML('water', '_root', {k:f.k, label:f.label, unit:f.unit, usageLabel:'ปริมาณการใช้'}, curVal, prev, prevUsage, true);
+      html += dualFieldHTML('water', '_root', {k:f.k, label:f.label, unit:f.unit, usageLabel:'ปริมาณการใช้'}, curVal, prev, prevUsage, true, true);
     }
     html += `</div>`;
   } else if(cat.key==='electricity'){
